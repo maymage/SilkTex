@@ -79,6 +79,7 @@ conf_data.set('PACKAGE_NAME', 'SilkTex')
 conf_data.set('PACKAGE', meson.project_name())
 conf_data.set_quoted('GETTEXT_PACKAGE', meson.project_name())
 conf_data.set_quoted('LOCALEDIR', join_paths(prefix, localesdir))
+conf_data.set('DESKTOP_ICON', join_paths(pkgdatadir, 'icons', 'Silktex.svg'))
 
 install_data(
     'COPYING',
