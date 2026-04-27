@@ -119,7 +119,8 @@ template $SilktexWindow : Adw.ApplicationWindow {
           orientation: horizontal;
           shrink-start-child: false;
           shrink-end-child: false;
-          resize-start-child: true;
+          // Keep the editor anchored on the left; let preview absorb resize.
+          resize-start-child: false;
           resize-end-child: true;
           wide-handle: false;
           vexpand: true;

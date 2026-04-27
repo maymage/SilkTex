@@ -1049,6 +1049,13 @@ static void on_preview_toggled(GtkToggleButton *button, gpointer user_data)
             self->preview_pane_pos = gtk_paned_get_position(self->editor_paned);
             self->preview_pane_ratio = (double)self->preview_pane_pos / (double)w;
             self->preview_pane_restorable = TRUE;
+
+            /* When preview is hidden, let the editor fill the full width instead
+             * of keeping the last split position (which leaves it "collapsed" on
+             * the left). */
+            self->preview_pane_silence = TRUE;
+            gtk_paned_set_position(self->editor_paned, w);
+            self->preview_pane_silence = FALSE;
         }
     }
 
