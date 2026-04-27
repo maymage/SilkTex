@@ -92,6 +92,7 @@ struct _SilktexWindow {
 
     SilktexGitStatus *git_status;
     char *git_status_message;
+    char *last_tex_save_dir;
     AdwDialog *git_dialog;
     GtkLabel *git_branch_label;
     GtkLabel *git_repo_label;

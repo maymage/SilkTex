@@ -338,6 +338,9 @@ static void on_open_response(GObject *source, GAsyncResult *result, gpointer use
     g_object_unref(file);
 }
 
+static void set_last_tex_save_dir_from_file(SilktexWindow *self, GFile *file);
+static GFile *build_default_save_folder(SilktexWindow *self);
+
 static void action_open(GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
@@ -401,6 +404,7 @@ static void on_save_response(GObject *source, GAsyncResult *result, gpointer use
             silktex_window_show_toast(self, save_error ? save_error->message : _("Save failed"));
             g_clear_error(&save_error);
         } else {
+            set_last_tex_save_dir_from_file(self, file);
             AdwTabPage *page = adw_tab_view_get_selected_page(self->tab_view);
             silktex_window_update_tab_title(self, page, editor);
             silktex_window_update_window_title(self);
@@ -413,6 +417,32 @@ static void on_save_response(GObject *source, GAsyncResult *result, gpointer use
     g_object_unref(file);
 }
 
+static void set_last_tex_save_dir_from_file(SilktexWindow *self, GFile *file)
+{
+    if (!self || !file) return;
+    g_autofree char *path = g_file_get_path(file);
+    if (!path || !*path) return;
+    g_autofree char *dir = g_path_get_dirname(path);
+    if (!dir || !*dir) return;
+    g_free(self->last_tex_save_dir);
+    self->last_tex_save_dir = g_strdup(dir);
+}
+
+static GFile *build_default_save_folder(SilktexWindow *self)
+{
+    if (self && self->last_tex_save_dir && *self->last_tex_save_dir &&
+        g_file_test(self->last_tex_save_dir, G_FILE_TEST_IS_DIR))
+        return g_file_new_for_path(self->last_tex_save_dir);
+
+    const char *downloads = g_get_user_special_dir(G_USER_DIRECTORY_DOWNLOAD);
+    if (downloads && *downloads && g_file_test(downloads, G_FILE_TEST_IS_DIR))
+        return g_file_new_for_path(downloads);
+
+    const char *home = g_get_home_dir();
+    if (home && *home) return g_file_new_for_path(home);
+    return NULL;
+}
+
 /*
  * Configure a GtkFileDialog for saving a .tex document.  We attach a
  * dedicated LaTeX filter (so the dialog's file-type picker defaults to
@@ -420,7 +450,7 @@ static void on_save_response(GObject *source, GAsyncResult *result, gpointer use
  * does not provide an automatic suffix API, so this is the cleanest way
  * to ensure the user ends up with a .tex file.
  */
-static void configure_tex_save_dialog(GtkFileDialog *dialog, SilktexEditor *editor)
+static void configure_tex_save_dialog(GtkFileDialog *dialog, SilktexWindow *self, SilktexEditor *editor)
 {
     GtkFileFilter *tex_filter = gtk_file_filter_new();
     gtk_file_filter_set_name(tex_filter, _("LaTeX (*.tex)"));
@@ -448,6 +478,8 @@ static void configure_tex_save_dialog(GtkFileDialog *dialog, SilktexEditor *edit
         }
     }
     gtk_file_dialog_set_initial_name(dialog, suggested ? suggested : "untitled.tex");
+    g_autoptr(GFile) folder = build_default_save_folder(self);
+    if (folder) gtk_file_dialog_set_initial_folder(dialog, folder);
 
     g_object_unref(filters);
     g_object_unref(tex_filter);
@@ -469,6 +501,7 @@ static void action_save(GSimpleAction *action, GVariant *parameter, gpointer use
             silktex_window_show_toast(self, error ? error->message : _("Save failed"));
             g_clear_error(&error);
         } else {
+            set_last_tex_save_dir_from_file(self, file);
             AdwTabPage *page = adw_tab_view_get_selected_page(self->tab_view);
             silktex_window_update_tab_title(self, page, editor);
             silktex_window_update_window_title(self);
@@ -480,7 +513,7 @@ static void action_save(GSimpleAction *action, GVariant *parameter, gpointer use
         GtkFileDialog *dialog = gtk_file_dialog_new();
         gtk_file_dialog_set_title(dialog, _("Save LaTeX Document"));
         gtk_file_dialog_set_modal(dialog, TRUE);
-        configure_tex_save_dialog(dialog, editor);
+        configure_tex_save_dialog(dialog, self, editor);
         gtk_file_dialog_save(dialog, GTK_WINDOW(self), NULL, on_save_response, self);
     }
 }
@@ -493,7 +526,7 @@ static void action_save_as(GSimpleAction *action, GVariant *parameter, gpointer 
     GtkFileDialog *dialog = gtk_file_dialog_new();
     gtk_file_dialog_set_title(dialog, _("Save LaTeX Document As"));
     gtk_file_dialog_set_modal(dialog, TRUE);
-    configure_tex_save_dialog(dialog, editor);
+    configure_tex_save_dialog(dialog, self, editor);
     gtk_file_dialog_save(dialog, GTK_WINDOW(self), NULL, on_save_response, self);
 }
 
@@ -544,6 +577,8 @@ static void action_export_pdf(GSimpleAction *a, GVariant *p, gpointer ud)
         g_autofree char *name = g_strdup_printf("%s.pdf", base ? base : "document");
         gtk_file_dialog_set_initial_name(dlg, name);
     }
+    g_autoptr(GFile) folder = build_default_save_folder(self);
+    if (folder) gtk_file_dialog_set_initial_folder(dlg, folder);
     gtk_file_dialog_save(dlg, GTK_WINDOW(self), NULL, on_export_response, self);
 }
 
@@ -1369,6 +1404,7 @@ static void silktex_window_dispose(GObject *object)
     self->git_dialog = NULL;
     g_clear_pointer(&self->git_status, silktex_git_status_free);
     g_clear_pointer(&self->git_status_message, g_free);
+    g_clear_pointer(&self->last_tex_save_dir, g_free);
     g_clear_object(&self->compiler);
     g_clear_object(&self->snippets);
 

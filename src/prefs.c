@@ -152,6 +152,12 @@ static void setup_snippet_source_buffer(GtkSourceBuffer *buffer)
     gtk_source_buffer_set_highlight_syntax(buffer, TRUE);
 }
 
+static void refresh_snippet_theme(SilktexPrefs *self)
+{
+    if (!self || !self->snippet_buf) return;
+    setup_snippet_source_buffer(GTK_SOURCE_BUFFER(self->snippet_buf));
+}
+
 static void setup_snippet_source_view(GtkWidget *view)
 {
     if (!view) return;
@@ -164,6 +170,7 @@ static void setup_snippet_source_view(GtkWidget *view)
     gtk_text_view_set_right_margin(GTK_TEXT_VIEW(view), 12);
     gtk_text_view_set_pixels_above_lines(GTK_TEXT_VIEW(view), 1);
     gtk_text_view_set_pixels_below_lines(GTK_TEXT_VIEW(view), 1);
+    gtk_source_view_set_highlight_current_line(GTK_SOURCE_VIEW(view), TRUE);
 }
 
 static void setup_snippet_scroller(GtkWidget *scroller)
@@ -187,6 +194,13 @@ static void on_snippet_editor_text_changed(GtkTextBuffer *buf, gpointer user_dat
 {
     GtkWidget *scroller = GTK_WIDGET(user_data);
     snippet_editor_update_height(buf, scroller);
+}
+
+static void on_style_manager_changed(GObject *obj, GParamSpec *pspec, gpointer user_data)
+{
+    (void)obj;
+    (void)pspec;
+    refresh_snippet_theme(SILKTEX_PREFS(user_data));
 }
 
 /* Build a GtkStringList whose display names match the style scheme list.
@@ -1271,10 +1285,16 @@ void silktex_prefs_set_snippets(SilktexPrefs *self, SilktexSnippets *snippets)
     self->current_snippet_index = 0;
     snippets_rebuild_combo(self);
     snippet_load_current_into_ui(self);
+    refresh_snippet_theme(self);
+
+    AdwStyleManager *style = adw_style_manager_get_default();
+    g_signal_connect(style, "notify::dark", G_CALLBACK(on_style_manager_changed), self);
+    g_signal_connect(style, "notify::color-scheme", G_CALLBACK(on_style_manager_changed), self);
 }
 
 void silktex_prefs_present(SilktexPrefs *self, GtkWindow *parent)
 {
     g_return_if_fail(SILKTEX_IS_PREFS(self));
+    refresh_snippet_theme(self);
     adw_dialog_present(ADW_DIALOG(self), GTK_WIDGET(parent));
 }
