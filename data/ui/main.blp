@@ -149,29 +149,13 @@ Adw.ToolbarView editor_toolbar_view {
     spacing: 2;
     styles ["toolbar", "silktex-bottom-toolbar"]
 
-    // ── LEFT ZONE ──────────────────────────────────────────────────────
     Gtk.Box {
       orientation: horizontal;
       spacing: 2;
-
       Gtk.Box {
         orientation: horizontal;
         spacing: 0;
         styles ["linked"]
-        Gtk.Button btn_compile {
-          icon-name: "media-playback-start-symbolic";
-          tooltip-text: _("Compile");
-          action-name: "win.compile";
-          styles ["flat"]
-        }
-        Gtk.MenuButton {
-          icon-name: "pan-down-symbolic";
-          tooltip-text: _("Document tools");
-          menu-model: document_menu;
-          styles ["flat"]
-        }
-      }
-
       Gtk.ToggleButton btn_tools_toggle {
         icon-name: "go-next-symbolic";
         tooltip-text: _("Show insert/format tools");
@@ -184,107 +168,108 @@ Adw.ToolbarView editor_toolbar_view {
         child: Gtk.Box {
           orientation: horizontal;
           spacing: 2;
+          Gtk.MenuButton btn_git_menu {
+            icon-name: "git-symbolic";
+            tooltip-text: _("Git");
+            menu-model: git_menu;
+            styles ["flat"]
+           }
+           Gtk.Separator { orientation: vertical; }
+           Gtk.Box {
+             orientation: horizontal;
+             spacing: 0;
+             styles ["linked"]
+             Gtk.MenuButton btn_insert {
+               icon-name: "insert-object-symbolic";
+               tooltip-text: _("Insert");
+               menu-model: insert_menu;
+               styles ["flat"]
+             }
+             Gtk.MenuButton btn_format {
+              icon-name: "format-text-bold-symbolic";
+              tooltip-text: _("Format");
+              menu-model: format_menu;
+              styles ["flat"]
+             }
+          }
           Gtk.Separator { orientation: vertical; }
-          Gtk.MenuButton btn_insert {
-            icon-name: "insert-object-symbolic";
-            tooltip-text: _("Insert");
-            menu-model: insert_menu;
-            styles ["flat"]
-          }
-          Gtk.MenuButton btn_format {
-            icon-name: "format-text-bold-symbolic";
-            tooltip-text: _("Format");
-            menu-model: format_menu;
-            styles ["flat"]
-          }
+          Gtk.Box {
+            orientation: horizontal;
+            spacing: 0;
+            styles ["linked"]
+            Gtk.Button btn_undo {
+              icon-name: "edit-undo-symbolic";
+              tooltip-text: _("Undo");
+              action-name: "win.undo";
+              styles ["flat"]
+            }
+            Gtk.Button btn_find_replace {
+              icon-name: "edit-find-replace-symbolic";
+              tooltip-text: _("Find and replace");
+              action-name: "win.find-replace";
+              styles ["flat"]
+            }
+            Gtk.Button btn_redo {
+              icon-name: "edit-redo-symbolic";
+              tooltip-text: _("Redo");
+              action-name: "win.redo";
+              styles ["flat"]
+            }
+        }
         };
+      }
+
+
+    }
+
+    Gtk.Separator { orientation: vertical; }
+
+    Gtk.Box {
+      orientation: horizontal;
+      spacing: 0;
+      styles ["linked","flat"]
+      Gtk.Button btn_save {
+        icon-name: "document-save-symbolic";
+        tooltip-text: _("Save");
+         action-name: "win.save";
+         styles ["flat"]
+      }
+      Gtk.MenuButton {
+         icon-name: "pan-down-symbolic";
+         tooltip-text: _("Save and export");
+         menu-model: save_menu;
+         styles ["flat"]
       }
     }
 
-    // ── LEFT SPACER ────────────────────────────────────────────────────
     Gtk.Box {
       orientation: horizontal;
       hexpand: true;
     }
 
-    // ── CENTER ZONE ────────────────────────────────────────────────────
-    Gtk.Revealer revealer_center {
-      transition-type: crossfade;
-      reveal-child: bind btn_tools_toggle.active;
-      child: Gtk.Box {
-        orientation: horizontal;
-        spacing: 2;
-        Gtk.Button btn_undo {
-          icon-name: "edit-undo-symbolic";
-          tooltip-text: _("Undo");
-          action-name: "win.undo";
-          styles ["flat"]
-        }
-        Gtk.Button btn_find_replace {
-          icon-name: "edit-find-replace-symbolic";
-          tooltip-text: _("Find and replace");
-          action-name: "win.find-replace";
-          styles ["flat"]
-        }
-        Gtk.Button btn_redo {
-          icon-name: "edit-redo-symbolic";
-          tooltip-text: _("Redo");
-          action-name: "win.redo";
-          styles ["flat"]
-        }
-      };
-    }
-
-    // ── RIGHT SPACER ───────────────────────────────────────────────────
     Gtk.Box {
-      orientation: horizontal;
-      hexpand: true;
-    }
-
-    // ── RIGHT ZONE ─────────────────────────────────────────────────────
-    Gtk.Box {
-      orientation: horizontal;
-      spacing: 2;
-
-      Gtk.Revealer revealer_right {
-        transition-type: slide_left;
-        reveal-child: bind btn_tools_toggle.active;
-        child: Gtk.Box tools_split_extra {
-          orientation: horizontal;
-          spacing: 2;
-        };
-      }
-
-      Gtk.Box tools_toggle_git_group {
-        orientation: horizontal;
-        spacing: 0;
-        Gtk.Separator { orientation: vertical; }
-        Gtk.MenuButton btn_git_menu {
-          icon-name: "git-symbolic";
-          tooltip-text: _("Git");
-          menu-model: git_menu;
-          styles ["flat"]
-        }
-      }
-
-      Gtk.Box {
         orientation: horizontal;
         spacing: 0;
         styles ["linked"]
-        Gtk.Button btn_save {
-          icon-name: "document-save-symbolic";
-          tooltip-text: _("Save");
-          action-name: "win.save";
+        Gtk.Box tools_split_extra {
+        orientation: horizontal;
+        spacing: 0;
+        }
+        Gtk.Button btn_compile {
+          icon-name: "media-playback-start-symbolic";
+          tooltip-text: _("Compile");
+          action-name: "win.compile";
           styles ["flat"]
         }
         Gtk.MenuButton {
-          icon-name: "pan-down-symbolic";
-          tooltip-text: _("Save and export");
-          menu-model: save_menu;
-          styles ["flat"]
-        }
+         icon-name: "pan-down-symbolic";
+         tooltip-text: _("Document tools");
+         menu-model: document_menu;
+         styles ["flat"]
+         }
       }
-    } 
+
+    }
   }
 }
 
@@ -292,7 +277,7 @@ Adw.ToolbarView editor_toolbar_view {
           // Pane 3 - preview.  View tools (zoom / page / sync / export) live
           // in the preview pane's bottom toolbar, matching pane 2.
           // ------------------------------------------------------------------
-          [end]
+
           Adw.ToolbarView preview_toolbar_view {
             content: Gtk.Box preview_box {
               orientation: vertical;
