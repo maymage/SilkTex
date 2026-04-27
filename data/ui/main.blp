@@ -288,7 +288,7 @@ Adw.ToolbarView editor_toolbar_view {
   }
 }
 
-          // ------------------------------------------------------------------
+// ------------------------------------------------------------------
           // Pane 3 - preview.  View tools (zoom / page / sync / export) live
           // in the preview pane's bottom toolbar, matching pane 2.
           // ------------------------------------------------------------------
@@ -299,42 +299,34 @@ Adw.ToolbarView editor_toolbar_view {
               hexpand: true;
               vexpand: true;
             };
-
             [bottom]
             Gtk.CenterBox preview_toolbar {
               margin-top: 4;
               margin-bottom: 4;
               margin-start: 6;
               margin-end: 6;
-
               styles ["toolbar", "silktex-bottom-toolbar"]
 
               [start]
               Gtk.Box {
                 orientation: horizontal;
                 spacing: 2;
-
                 Gtk.MenuButton btn_zoom_menu {
                   icon-name: "document-properties-symbolic";
                   tooltip-text: _("View tools");
                   menu-model: zoom_menu;
-
                   styles ["flat"]
                 }
-
                 Gtk.Button btn_zoom_out {
                   icon-name: "zoom-out-symbolic";
                   tooltip-text: _("Zoom Out");
                   action-name: "win.zoom-out";
-
                   styles ["flat"]
                 }
-
                 Gtk.Button btn_zoom_in {
                   icon-name: "zoom-in-symbolic";
                   tooltip-text: _("Zoom In");
                   action-name: "win.zoom-in";
-
                   styles ["flat"]
                 }
               }
@@ -343,28 +335,22 @@ Adw.ToolbarView editor_toolbar_view {
               Gtk.Box {
                 orientation: horizontal;
                 spacing: 4;
-
                 Gtk.Button btn_prev_page {
                   icon-name: "go-previous-symbolic";
                   tooltip-text: _("Previous Page");
                   action-name: "win.prev-page";
-
                   styles ["flat"]
                 }
-
                 Gtk.Label page_label {
                   label: "—";
                   margin-start: 6;
                   margin-end: 6;
-
                   styles ["numeric", "dim-label"]
                 }
-
                 Gtk.Button btn_next_page {
                   icon-name: "go-next-symbolic";
                   tooltip-text: _("Next Page");
                   action-name: "win.next-page";
-
                   styles ["flat"]
                 }
               }
@@ -373,38 +359,26 @@ Adw.ToolbarView editor_toolbar_view {
               Gtk.Box {
                 orientation: horizontal;
                 spacing: 2;
-
                 Gtk.Label preview_status {
                   label: "";
                   margin-end: 4;
-
                   styles ["dim-label"]
                 }
-
                 Gtk.Button btn_forward_sync {
                   icon-name: "find-location-symbolic";
                   tooltip-text: _("Sync to cursor");
                   action-name: "win.forward-sync";
-
                   styles ["flat"]
                 }
-
                 Gtk.Button btn_external_open {
                   icon-name: "document-send-symbolic";
                   tooltip-text: _("Open PDF externally");
                   action-name: "win.open-pdf-external";
-
                   styles ["flat"]
                 }
-
               }
             }
           }
-        };
-      };
-    };
-  };
-}
 
 menu insert_menu {
   section {
