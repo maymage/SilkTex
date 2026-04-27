@@ -147,7 +147,7 @@ template $SilktexWindow : Adw.ApplicationWindow {
               margin-end: 6;
               margin-top: 4;
               margin-bottom: 4;
-              spacing: 4;
+              spacing: 0;
 
               styles ["toolbar", "silktex-bottom-toolbar"]
 
@@ -175,33 +175,9 @@ template $SilktexWindow : Adw.ApplicationWindow {
 
               Gtk.ToggleButton btn_tools_toggle {
                 icon-name: "go-next-symbolic";
-                tooltip-text: _("Show extra tools");
+                tooltip-text: _("Show insert/format tools");
 
                 styles ["flat"]
-              }
-
-              Gtk.Separator {
-                orientation: vertical;
-              }
-
-              Gtk.Button {
-                icon-name: "edit-undo-symbolic";
-                tooltip-text: _("Undo");
-                action-name: "win.undo";
-
-                styles ["flat"]
-              }
-
-              Gtk.Button {
-                icon-name: "edit-redo-symbolic";
-                tooltip-text: _("Redo");
-                action-name: "win.redo";
-
-                styles ["flat"]
-              }
-
-              Gtk.Separator {
-                orientation: vertical;
               }
 
               Gtk.Revealer {
@@ -211,6 +187,10 @@ template $SilktexWindow : Adw.ApplicationWindow {
                 child: Gtk.Box {
                   orientation: horizontal;
                   spacing: 4;
+
+                  Gtk.Separator {
+                    orientation: vertical;
+                  }
 
                   Gtk.MenuButton btn_insert {
                     icon-name: "insert-object-symbolic";
@@ -227,70 +207,90 @@ template $SilktexWindow : Adw.ApplicationWindow {
 
                     styles ["flat"]
                   }
-
-                  Gtk.Separator {
-                    orientation: vertical;
-                  }
-
-                  Gtk.Button btn_find {
-                    icon-name: "edit-find-symbolic";
-                    tooltip-text: _("Find");
-                    action-name: "win.find";
-
-                    styles ["flat"]
-                  }
-
-                  Gtk.Button btn_find_replace {
-                    icon-name: "edit-find-replace-symbolic";
-                    tooltip-text: _("Find and replace");
-                    action-name: "win.find-replace";
-
-                    styles ["flat"]
-                  }
-
-                  Gtk.Separator {
-                    orientation: vertical;
-                  }
-
-                  Gtk.Box {
-                    orientation: horizontal;
-                    spacing: 0;
-                    styles ["linked"]
-
-                    Gtk.Button btn_save {
-                      icon-name: "document-save-symbolic";
-                      tooltip-text: _("Save");
-                      action-name: "win.save";
-
-                      styles ["flat"]
-                    }
-
-                    Gtk.MenuButton {
-                      icon-name: "pan-down-symbolic";
-                      tooltip-text: _("Save and export");
-                      menu-model: save_menu;
-
-                      styles ["flat"]
-                    }
-                  }
-
-                  Gtk.Separator {
-                    orientation: vertical;
-                  }
-
-                  Gtk.Box tools_split_extra {
-                    orientation: horizontal;
-                    spacing: 4;
-
-                    Gtk.MenuButton btn_git_menu {
-                      icon-name: "git-symbolic";
-                      tooltip-text: _("Git");
-                      menu-model: git_menu;
-
-                      styles ["flat"]
-                    }
-                  }
                 };
+              }
+
+              Gtk.Box {
+                hexpand: true;
+              }
+
+              Gtk.Separator {
+                orientation: vertical;
+              }
+
+              Gtk.Button btn_undo {
+                icon-name: "edit-undo-symbolic";
+                tooltip-text: _("Undo");
+                action-name: "win.undo";
+
+                styles ["flat"]
+              }
+
+              Gtk.Button btn_find {
+                icon-name: "edit-find-symbolic";
+                tooltip-text: _("Find");
+                action-name: "win.find";
+
+                styles ["flat"]
+              }
+
+              Gtk.Button btn_find_replace {
+                icon-name: "edit-find-replace-symbolic";
+                tooltip-text: _("Find and replace");
+                action-name: "win.find-replace";
+
+                styles ["flat"]
+              }
+
+              Gtk.Button btn_redo {
+                icon-name: "edit-redo-symbolic";
+                tooltip-text: _("Redo");
+                action-name: "win.redo";
+
+                styles ["flat"]
+              }
+
+              Gtk.Box {
+                hexpand: true;
+              }
+
+              Gtk.Separator {
+                orientation: vertical;
+              }
+
+              Gtk.MenuButton btn_git_menu {
+                icon-name: "git-symbolic";
+                tooltip-text: _("Git");
+                menu-model: git_menu;
+
+                styles ["flat"]
+              }
+
+              Gtk.Box {
+                orientation: horizontal;
+                spacing: 0;
+                styles ["linked"]
+
+                Gtk.Button btn_save {
+                  icon-name: "document-save-symbolic";
+                  tooltip-text: _("Save");
+                  action-name: "win.save";
+
+                  styles ["flat"]
+                }
+
+                Gtk.MenuButton {
+                  icon-name: "pan-down-symbolic";
+                  tooltip-text: _("Save and export");
+                  menu-model: save_menu;
+
+                  styles ["flat"]
+                }
+              }
+
+              Gtk.Box tools_split_extra {
+                orientation: horizontal;
+                spacing: 0;
               }
 
               // The compile-log toggle button is injected into tools_split_extra
