@@ -784,6 +784,13 @@ static void on_snippet_wizard_next(GtkButton *btn, gpointer ud)
     snippet_wizard_set_step(w, w->step + 1);
 }
 
+static void on_snippet_wizard_discard(GtkButton *btn, gpointer ud)
+{
+    (void)btn;
+    AdwDialog *dialog = ADW_DIALOG(ud);
+    adw_dialog_close(dialog);
+}
+
 static void on_snippet_wizard_save(GtkButton *btn, gpointer ud)
 {
     SnippetWizard *w = ud;
@@ -1014,7 +1021,7 @@ static void on_snippet_new(GtkButton *btn, gpointer ud)
     w->btn_next = GTK_BUTTON(gtk_button_new_with_label(_("Next")));
     w->btn_save = GTK_BUTTON(gtk_button_new_with_label(_("Save")));
     gtk_widget_add_css_class(GTK_WIDGET(w->btn_save), "suggested-action");
-    g_signal_connect(discard, "clicked", G_CALLBACK(adw_dialog_close), w->dialog);
+    g_signal_connect(discard, "clicked", G_CALLBACK(on_snippet_wizard_discard), w->dialog);
     g_signal_connect(w->btn_back, "clicked", G_CALLBACK(on_snippet_wizard_back), w);
     g_signal_connect(w->btn_next, "clicked", G_CALLBACK(on_snippet_wizard_next), w);
     g_signal_connect(w->btn_save, "clicked", G_CALLBACK(on_snippet_wizard_save), w);
