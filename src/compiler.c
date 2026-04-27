@@ -57,7 +57,9 @@ static gboolean running_in_flatpak(void)
 static gboolean spawn_tex_command(const char *working_dir, GPtrArray *argv, char **stdout_buf,
                                   char **stderr_buf, int *exit_status, GError **error)
 {
-    if (running_in_flatpak()) {
+    const char *program = (argv && argv->len > 0) ? g_ptr_array_index(argv, 0) : NULL;
+
+    if (running_in_flatpak() && program && !g_find_program_in_path(program)) {
         g_autoptr(GString) command = g_string_new(NULL);
 
         if (working_dir && *working_dir) {
@@ -76,10 +78,10 @@ static gboolean spawn_tex_command(const char *working_dir, GPtrArray *argv, char
                             stderr_buf, exit_status, error);
     }
 
-    const char *child_cwd = running_in_flatpak() ? NULL : working_dir;
-    return g_spawn_sync(child_cwd && *child_cwd ? child_cwd : NULL, (gchar **)argv->pdata, NULL,
-                        G_SPAWN_SEARCH_PATH, NULL, NULL, stdout_buf, stderr_buf, exit_status,
-                        error);
+    /* Prefer sandbox tools (TeXLive extension) when available; fall back to host otherwise. */
+    return g_spawn_sync(working_dir && *working_dir ? working_dir : NULL, (gchar **)argv->pdata,
+                        NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, stdout_buf, stderr_buf,
+                        exit_status, error);
 }
 
 static gboolean emit_compile_finished(gpointer user_data)

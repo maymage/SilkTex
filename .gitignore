@@ -20,3 +20,4 @@ andrej*
 
 # Runtime state
 .cache/
+.ccache/

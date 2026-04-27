@@ -6,9 +6,10 @@
 #
 # Build a SilkTex Flatpak bundle from the working copy.
 #
-#   ./flatpak/build.sh            # clean build + install locally
-#   ./flatpak/build.sh --run      # same, plus launch the result
-#   ./flatpak/build.sh --bundle   # export a distributable .flatpak file
+#   ./flatpak/build.sh                  # clean build + install locally
+#   ./flatpak/build.sh --run            # same, plus launch the result
+#   ./flatpak/build.sh --bundle         # export a distributable .flatpak file
+#   ./flatpak/build.sh --offline        # build using only local runtimes/deps
 #
 # NOTE: flatpak-builder only runs on Linux. On macOS use the Nix dev
 # shell (`./run.sh`) for regular development, and run this script on a
@@ -30,10 +31,12 @@ usage() {
 
 run_app=false
 make_bundle=false
+offline=false
 for arg in "$@"; do
     case "$arg" in
         --run)    run_app=true ;;
         --bundle) make_bundle=true ;;
+        --offline) offline=true ;;
         -h|--help) usage 0 ;;
         *) echo "unknown argument: $arg"; usage 1 ;;
     esac
@@ -44,21 +47,32 @@ if ! command -v flatpak >/dev/null || ! command -v flatpak-builder >/dev/null; t
     exit 1
 fi
 
-# Install the runtime / SDK declared in the manifest.
-flatpak install --user --noninteractive flathub \
-    org.gnome.Platform//50 \
-    org.gnome.Sdk//50 \
-    org.freedesktop.Sdk.Extension.texlive//25.08
+if ! $offline; then
+    # Install the runtime / SDK declared in the manifest.
+    flatpak install --user --noninteractive flathub \
+        org.gnome.Platform//50 \
+        org.gnome.Sdk//50 \
+        org.freedesktop.Sdk.Extension.texlive//25.08
+else
+    echo "Offline mode: skipping remote runtime/SDK installation."
+fi
 
 cd "$REPO_DIR"
 
+build_args=(
+    --force-clean
+    --disable-rofiles-fuse
+    --user
+    --install
+    --state-dir="$STATE_DIR"
+)
+
+if ! $offline; then
+    build_args+=(--install-deps-from=flathub)
+fi
+
 flatpak-builder \
-    --force-clean \
-    --disable-rofiles-fuse \
-    --user \
-    --install \
-    --install-deps-from=flathub \
-    --state-dir="$STATE_DIR" \
+    "${build_args[@]}" \
     "$BUILD_DIR" \
     "$MANIFEST"
 

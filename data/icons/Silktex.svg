@@ -19,20 +19,7 @@
     </linearGradient>
   </defs>
   <style
-     id="style1">@font-face {
-    font-family: 'sourcesanspro';
-    font-style: normal;
-    font-weight: 700;
-    font-display: block;
-    src: url(http://penpot-frontend:8080/fonts/sourcesanspro-bold.woff) format('woff');
-  }
-@font-face {
-    font-family: 'sourcesanspro';
-    font-style: normal;
-    font-weight: 300;
-    font-display: block;
-    src: url(http://penpot-frontend:8080/fonts/sourcesanspro-light.woff) format('woff');
-  }</style>
+     id="style1">/* keep icon self-contained: no external font URLs */</style>
   <g
      id="shape-0a164559-52a5-80c2-8006-305f55e284c1"
      rx="0"
@@ -177,7 +164,7 @@
                dominant-baseline="ideographic"
                textLength="7.322917"
                lengthAdjust="spacingAndGlyphs"
-               style="font-style:normal;font-weight:700;font-size:14px;font-family:sourcesanspro;letter-spacing:normal;text-transform:none;direction:ltr;white-space:pre;fill:#000000;fill-opacity:1;stroke-width:0.3;stroke-dasharray:none"
+               style="font-style:normal;font-weight:700;font-size:14px;font-family:'Sans';letter-spacing:normal;text-transform:none;direction:ltr;white-space:pre;fill:#000000;fill-opacity:1;stroke-width:0.3;stroke-dasharray:none"
                id="text13">v</text>
           </g>
         </g>
@@ -207,7 +194,7 @@
                dominant-baseline="ideographic"
                textLength="19.40625"
                lengthAdjust="spacingAndGlyphs"
-               style="font-style:normal;font-weight:700;font-size:18px;font-family:sourcesanspro;letter-spacing:normal;text-transform:none;direction:ltr;white-space:pre;fill:#000000;fill-opacity:1;stroke-width:0.3;stroke-dasharray:none"
+               style="font-style:normal;font-weight:700;font-size:18px;font-family:'Sans';letter-spacing:normal;text-transform:none;direction:ltr;white-space:pre;fill:#000000;fill-opacity:1;stroke-width:0.3;stroke-dasharray:none"
                id="text15">- - </text>
           </g>
         </g>
@@ -509,7 +496,7 @@
                  dominant-baseline="ideographic"
                  textLength="51.4375"
                  lengthAdjust="spacingAndGlyphs"
-                 style="font-style:normal;font-weight:300;font-size:72px;font-family:sourcesanspro;letter-spacing:normal;text-transform:none;direction:ltr;white-space:pre;fill:#000000;fill-opacity:1;stroke-width:0.3;stroke-dasharray:none"
+                 style="font-style:normal;font-weight:300;font-size:72px;font-family:'Sans';letter-spacing:normal;text-transform:none;direction:ltr;white-space:pre;fill:#000000;fill-opacity:1;stroke-width:0.3;stroke-dasharray:none"
                  id="text37">∝</text>
             </g>
           </g>
