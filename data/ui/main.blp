@@ -152,8 +152,10 @@ Adw.ToolbarView editor_toolbar_view {
     // ── LEFT ZONE ──────────────────────────────────────────────────────
     Gtk.Box {
       orientation: horizontal;
-      spacing: 2;
-
+      spacing: 2; Gtk.Box tools_split_extra {
+          orientation: horizontal;
+          spacing: 2;
+      }
       Gtk.Box {
         orientation: horizontal;
         spacing: 0;
@@ -249,13 +251,7 @@ Adw.ToolbarView editor_toolbar_view {
       Gtk.Revealer revealer_right {
         transition-type: slide_left;
         reveal-child: bind btn_tools_toggle.active;
-        child: Gtk.Box tools_split_extra {
-          orientation: horizontal;
-          spacing: 2;
-        };
-      }
-
-      Gtk.Box tools_toggle_git_group {
+        child: Gtk.Box tools_toggle_git_group {
         orientation: horizontal;
         spacing: 0;
         Gtk.Separator { orientation: vertical; }
@@ -265,6 +261,7 @@ Adw.ToolbarView editor_toolbar_view {
           menu-model: git_menu;
           styles ["flat"]
         }
+      };
       }
 
       Gtk.Box {
