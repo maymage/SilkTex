@@ -106,6 +106,89 @@ static void fire_apply(SilktexPrefs *self)
     if (self->apply_func) self->apply_func(self->apply_data);
 }
 
+static void ensure_snippet_editor_css(void)
+{
+    static gboolean installed = FALSE;
+    if (installed) return;
+    installed = TRUE;
+
+    GtkCssProvider *provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_string(
+        provider,
+        "scrolledwindow.silktex-snippet-scroller, "
+        "scrolledwindow.silktex-snippet-scroller > viewport {"
+        "  background-color: @window_bg_color;"
+        "}"
+        ".silktex-snippet-editor {"
+        "  background-color: @window_bg_color;"
+        "  color: @window_fg_color;"
+        "  font-size: 18pt;"
+        "  caret-color: @window_fg_color;"
+        "}"
+        "textview.silktex-snippet-editor text {"
+        "  background-color: @window_bg_color;"
+        "  color: @window_fg_color;"
+        "  caret-color: @window_fg_color;"
+        "}");
+    gtk_style_context_add_provider_for_display(gdk_display_get_default(),
+                                               GTK_STYLE_PROVIDER(provider),
+                                               GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(provider);
+}
+
+static void setup_snippet_source_buffer(GtkSourceBuffer *buffer)
+{
+    if (!buffer) return;
+    silktex_init_style_scheme_paths();
+    GtkSourceLanguageManager *lm = gtk_source_language_manager_get_default();
+    GtkSourceLanguage *lang = gtk_source_language_manager_get_language(lm, "latex");
+    if (!lang) lang = gtk_source_language_manager_get_language(lm, "tex");
+    if (lang) gtk_source_buffer_set_language(buffer, lang);
+    GtkSourceStyleSchemeManager *sm = gtk_source_style_scheme_manager_get_default();
+    const char *scheme_id = silktex_resolved_style_scheme_id();
+    GtkSourceStyleScheme *scheme =
+        (scheme_id && *scheme_id) ? gtk_source_style_scheme_manager_get_scheme(sm, scheme_id) : NULL;
+    if (scheme) gtk_source_buffer_set_style_scheme(buffer, scheme);
+    gtk_source_buffer_set_highlight_syntax(buffer, TRUE);
+}
+
+static void setup_snippet_source_view(GtkWidget *view)
+{
+    if (!view) return;
+    ensure_snippet_editor_css();
+    gtk_widget_add_css_class(view, "silktex-snippet-editor");
+    gtk_widget_add_css_class(view, "view");
+    gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_NONE);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(view), 12);
+    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(view), 12);
+    gtk_text_view_set_pixels_above_lines(GTK_TEXT_VIEW(view), 1);
+    gtk_text_view_set_pixels_below_lines(GTK_TEXT_VIEW(view), 1);
+}
+
+static void setup_snippet_scroller(GtkWidget *scroller)
+{
+    if (!scroller) return;
+    ensure_snippet_editor_css();
+    gtk_widget_add_css_class(scroller, "silktex-snippet-scroller");
+}
+
+static void snippet_editor_update_height(GtkTextBuffer *buf, GtkWidget *scroller)
+{
+    if (!buf || !scroller) return;
+    int lines = gtk_text_buffer_get_line_count(buf);
+    if (lines < 1) lines = 1;
+    int target = 20 + lines * 26;
+    target = CLAMP(target, 80, 420);
+    gtk_widget_set_size_request(scroller, -1, target);
+}
+
+static void on_snippet_editor_text_changed(GtkTextBuffer *buf, gpointer user_data)
+{
+    GtkWidget *scroller = GTK_WIDGET(user_data);
+    snippet_editor_update_height(buf, scroller);
+}
+
 /* Build a GtkStringList whose display names match the style scheme list.
  * Also fill self->scheme_ids with the corresponding IDs. */
 static GtkStringList *build_scheme_model(SilktexPrefs *self)
@@ -964,13 +1047,16 @@ static void on_snippet_new(GtkButton *btn, gpointer ud)
 
     GtkWidget *p2 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
     GtkSourceBuffer *body_buf = gtk_source_buffer_new(NULL);
+    setup_snippet_source_buffer(body_buf);
     w->body_buf = GTK_TEXT_BUFFER(body_buf);
     GtkWidget *body_view = gtk_source_view_new_with_buffer(body_buf);
-    gtk_text_view_set_monospace(GTK_TEXT_VIEW(body_view), TRUE);
+    setup_snippet_source_view(body_view);
     gtk_widget_set_vexpand(body_view, TRUE);
     GtkWidget *body_scrolled = gtk_scrolled_window_new();
-    gtk_widget_set_vexpand(body_scrolled, TRUE);
+    setup_snippet_scroller(body_scrolled);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(body_scrolled), body_view);
+    g_signal_connect(body_buf, "changed", G_CALLBACK(on_snippet_editor_text_changed), body_scrolled);
+    snippet_editor_update_height(GTK_TEXT_BUFFER(body_buf), body_scrolled);
     gtk_box_append(GTK_BOX(p2), body_scrolled);
 
     GtkWidget *p3 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
@@ -996,13 +1082,16 @@ static void on_snippet_new(GtkButton *btn, gpointer ud)
     w->ov_accel_row = ADW_ENTRY_ROW(adw_entry_row_new());
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(w->ov_accel_row), _("Shortcut"));
     GtkSourceBuffer *ov_buf = gtk_source_buffer_new(NULL);
+    setup_snippet_source_buffer(ov_buf);
     w->ov_body_buf = GTK_TEXT_BUFFER(ov_buf);
     GtkWidget *ov_view = gtk_source_view_new_with_buffer(ov_buf);
-    gtk_text_view_set_monospace(GTK_TEXT_VIEW(ov_view), TRUE);
+    setup_snippet_source_view(ov_view);
     gtk_widget_set_vexpand(ov_view, TRUE);
     GtkWidget *ov_scrolled = gtk_scrolled_window_new();
-    gtk_widget_set_vexpand(ov_scrolled, TRUE);
+    setup_snippet_scroller(ov_scrolled);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(ov_scrolled), ov_view);
+    g_signal_connect(ov_buf, "changed", G_CALLBACK(on_snippet_editor_text_changed), ov_scrolled);
+    snippet_editor_update_height(GTK_TEXT_BUFFER(ov_buf), ov_scrolled);
     gtk_box_append(GTK_BOX(p4), GTK_WIDGET(w->ov_name_row));
     gtk_box_append(GTK_BOX(p4), GTK_WIDGET(w->ov_key_row));
     gtk_box_append(GTK_BOX(p4), GTK_WIDGET(w->ov_accel_row));
@@ -1156,22 +1245,26 @@ void silktex_prefs_set_snippets(SilktexPrefs *self, SilktexSnippets *snippets)
 
     /* ---- source view ---- */
     GtkSourceBuffer *sbuf = gtk_source_buffer_new(NULL);
+    setup_snippet_source_buffer(sbuf);
     self->snippet_buf = GTK_TEXT_BUFFER(sbuf);
 
     GtkWidget *view = gtk_source_view_new_with_buffer(sbuf);
-    gtk_source_view_set_show_line_numbers(GTK_SOURCE_VIEW(view), TRUE);
+    gtk_source_view_set_show_line_numbers(GTK_SOURCE_VIEW(view), FALSE);
     gtk_source_view_set_tab_width(GTK_SOURCE_VIEW(view), 4);
     gtk_source_view_set_auto_indent(GTK_SOURCE_VIEW(view), TRUE);
-    gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
+    setup_snippet_source_view(view);
     gtk_widget_set_vexpand(view, TRUE);
 
     GtkWidget *scrolled = gtk_scrolled_window_new();
-    gtk_widget_set_size_request(scrolled, -1, 380);
-    gtk_widget_set_vexpand(scrolled, TRUE);
+    setup_snippet_scroller(scrolled);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), view);
+    g_signal_connect(sbuf, "changed", G_CALLBACK(on_snippet_editor_text_changed), scrolled);
+    snippet_editor_update_height(GTK_TEXT_BUFFER(sbuf), scrolled);
 
-    adw_preferences_group_add(grp_info, toolbar);
     adw_preferences_group_add(grp_info, scrolled);
+    gtk_widget_set_margin_top(toolbar, 8);
+    gtk_widget_set_margin_bottom(toolbar, 8);
+    adw_preferences_group_add(grp_info, toolbar);
     adw_preferences_page_add(snip_page, grp_info);
 
     snippets_parse_file(self);
