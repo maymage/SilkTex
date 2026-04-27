@@ -70,6 +70,7 @@ template $SilktexWindow : Adw.ApplicationWindow {
     content: Adw.ToastOverlay toast_overlay {
       child: Adw.OverlaySplitView split_view {
         show-sidebar: bind btn_sidebar.active bidirectional;
+        sidebar-position: end;
         sidebar-width-fraction: 0.2;
         min-sidebar-width: 180;
         max-sidebar-width: 400;

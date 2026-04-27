@@ -24,6 +24,8 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
+  - --filesystem=xdg-download:rw
+  - --filesystem=xdg-documents:rw
   - --talk-name=org.freedesktop.portal.OpenURI
   - --env=PATH=/app/texlive/bin:/app/texlive/bin/x86_64-linux:/app/texlive/bin/aarch64-linux:/app/bin:/usr/bin
   - --env=LD_LIBRARY_PATH=/app/texlive/lib

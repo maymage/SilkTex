@@ -1089,7 +1089,8 @@ static void on_window_width_changed(GObject *object, GParamSpec *pspec, gpointer
     if (narrow && gtk_toggle_button_get_active(self->btn_preview) && self->editor_paned) {
         int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
         if (w > 0) {
-            int collapsed_pos = clamp_editor_pane_start(w, w - 340);
+            /* Keep editor anchored; collapse preview inward on narrow windows. */
+            int collapsed_pos = clamp_editor_pane_start(w, self->preview_pane_pos);
             self->preview_pane_silence = TRUE;
             gtk_paned_set_position(self->editor_paned, collapsed_pos);
             self->preview_pane_silence = FALSE;
@@ -1382,7 +1383,7 @@ void silktex_window_install_chrome_css(void)
         "  box-shadow: none;"
         "}"
         ".silktex-sidebar-pane {"
-        "  box-shadow: 1px 0 0 0 @borders, 1px 0 4px alpha(black, 0.2);"
+        "  box-shadow: -1px 0 0 0 @borders, -1px 0 4px alpha(black, 0.2);"
         "}"
         "box.toolbar.silktex-bottom-toolbar, box.silktex-bottom-toolbar {"
         "  border: none;"
