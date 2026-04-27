@@ -70,7 +70,7 @@ template $SilktexWindow : Adw.ApplicationWindow {
     content: Adw.ToastOverlay toast_overlay {
       child: Adw.OverlaySplitView split_view {
         show-sidebar: bind btn_sidebar.active bidirectional;
-        sidebar-position: end;
+        sidebar-position: start;
         sidebar-width-fraction: 0.2;
         min-sidebar-width: 180;
         max-sidebar-width: 400;
@@ -151,10 +151,31 @@ template $SilktexWindow : Adw.ApplicationWindow {
 
               styles ["toolbar", "silktex-bottom-toolbar"]
 
-              Gtk.Button btn_compile {
-                icon-name: "media-playback-start-symbolic";
-                tooltip-text: _("Compile");
-                action-name: "win.compile";
+              Gtk.Box {
+                orientation: horizontal;
+                spacing: 0;
+                styles ["linked"]
+
+                Gtk.Button btn_compile {
+                  icon-name: "media-playback-start-symbolic";
+                  tooltip-text: _("Compile");
+                  action-name: "win.compile";
+
+                  styles ["flat"]
+                }
+
+                Gtk.MenuButton {
+                  icon-name: "pan-down-symbolic";
+                  tooltip-text: _("Document tools");
+                  menu-model: document_menu;
+
+                  styles ["flat"]
+                }
+              }
+
+              Gtk.ToggleButton btn_tools_toggle {
+                icon-name: "go-next-symbolic";
+                tooltip-text: _("Show extra tools");
 
                 styles ["flat"]
               }
@@ -183,90 +204,98 @@ template $SilktexWindow : Adw.ApplicationWindow {
                 orientation: vertical;
               }
 
-              Gtk.MenuButton btn_insert {
-                icon-name: "insert-object-symbolic";
-                tooltip-text: _("Insert");
-                menu-model: insert_menu;
+              Gtk.Revealer {
+                transition-type: slide_right;
+                reveal-child: bind btn_tools_toggle.active bidirectional;
 
-                styles ["flat"]
+                child: Gtk.Box {
+                  orientation: horizontal;
+                  spacing: 4;
+
+                  Gtk.MenuButton btn_insert {
+                    icon-name: "insert-object-symbolic";
+                    tooltip-text: _("Insert");
+                    menu-model: insert_menu;
+
+                    styles ["flat"]
+                  }
+
+                  Gtk.MenuButton btn_format {
+                    icon-name: "format-text-bold-symbolic";
+                    tooltip-text: _("Format");
+                    menu-model: format_menu;
+
+                    styles ["flat"]
+                  }
+
+                  Gtk.Separator {
+                    orientation: vertical;
+                  }
+
+                  Gtk.Button btn_find {
+                    icon-name: "edit-find-symbolic";
+                    tooltip-text: _("Find");
+                    action-name: "win.find";
+
+                    styles ["flat"]
+                  }
+
+                  Gtk.Button btn_find_replace {
+                    icon-name: "edit-find-replace-symbolic";
+                    tooltip-text: _("Find and replace");
+                    action-name: "win.find-replace";
+
+                    styles ["flat"]
+                  }
+
+                  Gtk.Separator {
+                    orientation: vertical;
+                  }
+
+                  Gtk.Box {
+                    orientation: horizontal;
+                    spacing: 0;
+                    styles ["linked"]
+
+                    Gtk.Button btn_save {
+                      icon-name: "document-save-symbolic";
+                      tooltip-text: _("Save");
+                      action-name: "win.save";
+
+                      styles ["flat"]
+                    }
+
+                    Gtk.MenuButton {
+                      icon-name: "pan-down-symbolic";
+                      tooltip-text: _("Save and export");
+                      menu-model: save_menu;
+
+                      styles ["flat"]
+                    }
+                  }
+
+                  Gtk.Separator {
+                    orientation: vertical;
+                  }
+
+                  Gtk.Box tools_split_extra {
+                    orientation: horizontal;
+                    spacing: 4;
+
+                    Gtk.MenuButton btn_git_menu {
+                      icon-name: "git-symbolic";
+                      tooltip-text: _("Git");
+                      menu-model: git_menu;
+
+                      styles ["flat"]
+                    }
+                  }
+                };
               }
 
-              Gtk.MenuButton btn_format {
-                icon-name: "format-text-bold-symbolic";
-                tooltip-text: _("Format");
-                menu-model: format_menu;
-
-                styles ["flat"]
-              }
-
-              Gtk.Separator {
-                orientation: vertical;
-              }
-
-              Gtk.Button btn_find {
-                icon-name: "edit-find-symbolic";
-                tooltip-text: _("Find");
-                action-name: "win.find";
-
-                styles ["flat"]
-              }
-
-              Gtk.Button btn_find_replace {
-                icon-name: "edit-find-replace-symbolic";
-                tooltip-text: _("Find and replace");
-                action-name: "win.find-replace";
-
-                styles ["flat"]
-              }
-
-              // Filler pushes the log toggle to the right edge.
-              Gtk.Box {
-                hexpand: true;
-              }
-
-              Gtk.Separator {
-                orientation: vertical;
-              }
-
-              Gtk.Button {
-                icon-name: "document-save-symbolic";
-                tooltip-text: _("Save");
-                action-name: "win.save";
-
-                styles ["flat"]
-              }
-
-              Gtk.Button {
-                icon-name: "document-save-as-symbolic";
-                tooltip-text: _("Save as");
-                action-name: "win.save-as";
-
-                styles ["flat"]
-              }
-
-              Gtk.MenuButton btn_git_menu {
-                icon-name: "git-symbolic";
-                tooltip-text: _("Git");
-                menu-model: git_menu;
-
-                styles ["flat"]
-              }
-
-              Gtk.Separator {
-                orientation: vertical;
-              }
-
-              Gtk.MenuButton {
-                icon-name: "document-properties-symbolic";
-                tooltip-text: _("Document Tools");
-                menu-model: document_menu;
-
-                styles ["flat"]
-              }
-
-              // The compile-log toggle button is injected here from window.c
-              // so the revealer's content can share a single text buffer with
-              // the surrounding code.  See editor_bottom_bar bindings.
+              // The compile-log toggle button is injected into tools_split_extra
+              // from window.c so the log panel can share a single text buffer
+              // with the surrounding code.
             }
           }
 
@@ -379,13 +408,6 @@ template $SilktexWindow : Adw.ApplicationWindow {
                   styles ["flat"]
                 }
 
-                Gtk.Button btn_export {
-                  icon-name: "document-save-as-symbolic";
-                  tooltip-text: _("Export PDF");
-                  action-name: "win.export-pdf";
-
-                  styles ["flat"]
-                }
               }
             }
           }
@@ -586,6 +608,20 @@ menu document_menu {
     item {
       label: _("Show Compile _Log");
       action: "win.toggle-log";
+    }
+  }
+}
+
+menu save_menu {
+  section {
+    item {
+      label: _("_Save As…");
+      action: "win.save-as";
+    }
+
+    item {
+      label: _("_Export PDF…");
+      action: "win.export-pdf";
     }
   }
 }

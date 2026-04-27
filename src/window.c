@@ -232,6 +232,7 @@ static void on_compile_finished(SilktexCompiler *compiler, gpointer user_data)
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compiled"));
     if (self->log_toggle) gtk_widget_remove_css_class(GTK_WIDGET(self->log_toggle), "error");
+    if (self->btn_compile) gtk_widget_remove_css_class(GTK_WIDGET(self->btn_compile), "error");
 }
 
 static void on_compile_error(SilktexCompiler *compiler, gpointer user_data)
@@ -241,6 +242,7 @@ static void on_compile_error(SilktexCompiler *compiler, gpointer user_data)
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compile error"));
     if (self->log_toggle) gtk_widget_add_css_class(GTK_WIDGET(self->log_toggle), "error");
+    if (self->btn_compile) gtk_widget_add_css_class(GTK_WIDGET(self->btn_compile), "error");
 
     /*
      * The compiler restores the last-good PDF on failure, so if the
@@ -821,6 +823,52 @@ static void on_log_toggle_active(GtkToggleButton *button, GParamSpec *pspec, gpo
     }
 }
 
+static int current_editor_min_width(SilktexWindow *self)
+{
+    int min_width = SILKTEX_EDITOR_MIN_WIDTH;
+    if (self && self->btn_tools_toggle &&
+        gtk_toggle_button_get_active(self->btn_tools_toggle))
+        min_width += 240;
+    return min_width;
+}
+
+static void update_editor_min_width_constraints(SilktexWindow *self)
+{
+    if (!self) return;
+    int min_width = current_editor_min_width(self);
+    if (self->editor_toolbar_view)
+        gtk_widget_set_size_request(GTK_WIDGET(self->editor_toolbar_view), min_width, -1);
+
+    if (!self->editor_paned || !self->preview_toolbar_view) return;
+    if (!gtk_widget_get_visible(GTK_WIDGET(self->preview_toolbar_view))) return;
+
+    int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
+    if (w < 1) return;
+
+    int max_start = w - SILKTEX_PREVIEW_PANE_MIN_WIDTH;
+    if (max_start < min_width) max_start = min_width;
+    int position = gtk_paned_get_position(self->editor_paned);
+    int clamped = CLAMP(position, min_width, max_start);
+    if (clamped != position) {
+        self->preview_pane_silence = TRUE;
+        gtk_paned_set_position(self->editor_paned, clamped);
+        self->preview_pane_silence = FALSE;
+    }
+}
+
+static void on_tools_split_toggle_active(GtkToggleButton *button, GParamSpec *pspec,
+                                         gpointer user_data)
+{
+    (void)pspec;
+    SilktexWindow *self = SILKTEX_WINDOW(user_data);
+    gboolean active = gtk_toggle_button_get_active(button);
+    gtk_button_set_icon_name(GTK_BUTTON(button),
+                             active ? "go-previous-symbolic" : "go-next-symbolic");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(button),
+                                active ? _("Hide extra tools") : _("Show extra tools"));
+    update_editor_min_width_constraints(self);
+}
+
 static void action_refresh_structure(GSimpleAction *a, GVariant *p, gpointer ud)
 {
     SilktexWindow *self = SILKTEX_WINDOW(ud);
@@ -972,12 +1020,13 @@ void silktex_window_on_prefs_apply(gpointer user_data)
  * restore when widening (preview_narrow / preview_auto_collapsed).
  */
 
-static int clamp_editor_pane_start(int w, int pos)
+static int clamp_editor_pane_start(SilktexWindow *self, int w, int pos)
 {
     if (w < 1) return pos;
+    int min_width = current_editor_min_width(self);
     int max_start = w - SILKTEX_PREVIEW_PANE_MIN_WIDTH;
-    if (max_start < SILKTEX_EDITOR_MIN_WIDTH) max_start = SILKTEX_EDITOR_MIN_WIDTH;
-    if (pos < SILKTEX_EDITOR_MIN_WIDTH) return SILKTEX_EDITOR_MIN_WIDTH;
+    if (max_start < min_width) max_start = min_width;
+    if (pos < min_width) return min_width;
     if (pos > max_start) return max_start;
     return pos;
 }
@@ -989,12 +1038,13 @@ void silktex_window_apply_editor_paned_half_split(SilktexWindow *self)
     int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
     if (w < 1) return;
 
+    int min_width = current_editor_min_width(self);
     int half = w / 2;
     int max_start = w - SILKTEX_PREVIEW_PANE_MIN_WIDTH;
-    if (max_start < SILKTEX_EDITOR_MIN_WIDTH) max_start = SILKTEX_EDITOR_MIN_WIDTH;
+    if (max_start < min_width) max_start = min_width;
     if (half > max_start) half = max_start;
-    if (half < SILKTEX_EDITOR_MIN_WIDTH) half = SILKTEX_EDITOR_MIN_WIDTH;
-    if (half > max_start) half = (SILKTEX_EDITOR_MIN_WIDTH + max_start) / 2;
+    if (half < min_width) half = min_width;
+    if (half > max_start) half = (min_width + max_start) / 2;
 
     self->preview_pane_silence = TRUE;
     gtk_paned_set_position(self->editor_paned, half);
@@ -1022,7 +1072,7 @@ static void apply_editor_pane_restore(SilktexWindow *self)
     int target = self->preview_pane_pos;
     if (self->preview_pane_ratio > 0.0 && self->preview_pane_ratio < 1.0)
         target = (int)(self->preview_pane_ratio * (double)w);
-    int pos = clamp_editor_pane_start(w, target);
+    int pos = clamp_editor_pane_start(self, w, target);
     self->preview_pane_silence = TRUE;
     gtk_paned_set_position(self->editor_paned, pos);
     self->preview_pane_silence = FALSE;
@@ -1090,7 +1140,7 @@ static void on_window_width_changed(GObject *object, GParamSpec *pspec, gpointer
         int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
         if (w > 0) {
             /* Keep editor anchored; collapse preview inward on narrow windows. */
-            int collapsed_pos = clamp_editor_pane_start(w, self->preview_pane_pos);
+            int collapsed_pos = clamp_editor_pane_start(self, w, self->preview_pane_pos);
             self->preview_pane_silence = TRUE;
             gtk_paned_set_position(self->editor_paned, collapsed_pos);
             self->preview_pane_silence = FALSE;
@@ -1116,7 +1166,7 @@ static void on_editor_paned_position_changed(GObject *object, GParamSpec *pspec,
 
     int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
     int position = gtk_paned_get_position(self->editor_paned);
-    int clamped = clamp_editor_pane_start(w, position);
+    int clamped = clamp_editor_pane_start(self, w, position);
     if (clamped != position) {
         self->preview_pane_silence = TRUE;
         gtk_paned_set_position(self->editor_paned, clamped);
@@ -1343,6 +1393,7 @@ static void silktex_window_class_init(SilktexWindowClass *klass)
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_paned);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_toolbar_view);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_bottom_bar);
+    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, tools_split_extra);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, preview_toolbar_view);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, preview_box);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, structure_container);
@@ -1351,9 +1402,10 @@ static void silktex_window_class_init(SilktexWindowClass *klass)
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_preview);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_sidebar);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_compile);
+    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_tools_toggle);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_menu);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_git_menu);
-    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_export);
+    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_save);
 }
 
 /*
@@ -1477,9 +1529,6 @@ static void silktex_window_init(SilktexWindow *self)
     {
         GtkIconTheme *it = gtk_icon_theme_get_for_display(gdk_display_get_default());
         gtk_icon_theme_add_resource_path(it, "/app/silktex/icons");
-        const char *const export_icons[] = {"document-export-symbolic", "document-save-as-symbolic",
-                                            "folder-download-symbolic", "document-save-symbolic",
-                                            NULL};
         /* VCS / branch icons only — do not use folder-symbolic here: on some themes
          * the Git names are missing from has_icon() but folder-symbolic matches last,
          * so the menu looked like a folder despite main.blp using git-symbolic. */
@@ -1487,13 +1536,6 @@ static void silktex_window_init(SilktexWindow *self)
             "git-symbolic", "vcs-git-symbolic", "branch-arrow-symbolic", "version-control-symbolic", NULL
         };
 
-        const char *export_icon = export_icons[3];
-        for (int i = 0; export_icons[i]; i++) {
-            if (gtk_icon_theme_has_icon(it, export_icons[i])) {
-                export_icon = export_icons[i];
-                break;
-            }
-        }
         const char *git_icon = "git-symbolic";
         for (int i = 0; git_icons[i]; i++) {
             if (gtk_icon_theme_has_icon(it, git_icons[i])) {
@@ -1502,7 +1544,6 @@ static void silktex_window_init(SilktexWindow *self)
             }
         }
 
-        if (self->btn_export) gtk_button_set_icon_name(self->btn_export, export_icon);
         if (self->btn_git_menu) gtk_menu_button_set_icon_name(self->btn_git_menu, git_icon);
     }
 
@@ -1521,10 +1562,7 @@ static void silktex_window_init(SilktexWindow *self)
     gtk_box_append(self->preview_box, GTK_WIDGET(self->preview));
     silktex_window_apply_preview_theme(self);
 
-    if (self->editor_toolbar_view) {
-        gtk_widget_set_size_request(GTK_WIDGET(self->editor_toolbar_view), SILKTEX_EDITOR_MIN_WIDTH,
-                                    -1);
-    }
+    update_editor_min_width_constraints(self);
 
     g_signal_connect(self->preview, "notify::page", G_CALLBACK(on_preview_page_changed), self);
     g_signal_connect(self->preview, "notify::n-pages", G_CALLBACK(on_preview_page_changed), self);
@@ -1569,8 +1607,7 @@ static void silktex_window_init(SilktexWindow *self)
      *
      * Revealer sits as a *bottom* bar of the editor ToolbarView, just above
      * the editor_bottom_bar.  The toggle that opens / closes it is appended
-     * to the end of the bottom bar so it pairs with the code tools on the
-     * left. */
+     * into the split-out tools group so save/log can collapse together. */
     {
         GtkWidget *revealer = gtk_revealer_new();
         gtk_widget_add_css_class(revealer, "silktex-compile-log");
@@ -1602,12 +1639,18 @@ static void silktex_window_init(SilktexWindow *self)
         gtk_widget_add_css_class(log_toggle, "flat");
         self->log_toggle = GTK_TOGGLE_BUTTON(log_toggle);
 
-        if (self->editor_bottom_bar) {
-            gtk_box_append(self->editor_bottom_bar, log_toggle);
+        if (self->tools_split_extra) {
+            gtk_box_append(self->tools_split_extra, log_toggle);
         }
 
         g_object_bind_property(log_toggle, "active", revealer, "reveal-child", G_BINDING_DEFAULT);
         g_signal_connect(log_toggle, "notify::active", G_CALLBACK(on_log_toggle_active), self);
+    }
+
+    if (self->btn_tools_toggle) {
+        g_signal_connect(self->btn_tools_toggle, "notify::active",
+                         G_CALLBACK(on_tools_split_toggle_active), self);
+        on_tools_split_toggle_active(self->btn_tools_toggle, NULL, self);
     }
 
     /* ---- initial tab ---- */
