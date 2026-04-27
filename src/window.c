@@ -1344,7 +1344,6 @@ static void silktex_window_class_init(SilktexWindowClass *klass)
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_sidebar);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_compile);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_menu);
-    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_export_doc);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_git_menu);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_export);
 }
@@ -1495,7 +1494,6 @@ static void silktex_window_init(SilktexWindow *self)
             }
         }
 
-        if (self->btn_export_doc) gtk_button_set_icon_name(self->btn_export_doc, export_icon);
         if (self->btn_export) gtk_button_set_icon_name(self->btn_export, export_icon);
         if (self->btn_git_menu) gtk_menu_button_set_icon_name(self->btn_git_menu, git_icon);
     }
