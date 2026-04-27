@@ -123,10 +123,24 @@ static gboolean run_typesetter(SilktexCompiler *self, const char *workfile, cons
 
     g_autofree char *final_pdf = g_strdup_printf("%s/%s.pdf", outdir, basename);
     g_autofree char *backup_pdf = g_strdup_printf("%s.lastgood", final_pdf);
+    g_autofree char *final_synctex_gz = g_strdup_printf("%s/%s.synctex.gz", outdir, basename);
+    g_autofree char *backup_synctex_gz = g_strdup_printf("%s.lastgood", final_synctex_gz);
+    g_autofree char *final_synctex = g_strdup_printf("%s/%s.synctex", outdir, basename);
+    g_autofree char *backup_synctex = g_strdup_printf("%s.lastgood", final_synctex);
 
     if (g_file_test(final_pdf, G_FILE_TEST_EXISTS)) {
         g_autoptr(GFile) src = g_file_new_for_path(final_pdf);
         g_autoptr(GFile) dst = g_file_new_for_path(backup_pdf);
+        g_file_copy(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+    }
+    if (g_file_test(final_synctex_gz, G_FILE_TEST_EXISTS)) {
+        g_autoptr(GFile) src = g_file_new_for_path(final_synctex_gz);
+        g_autoptr(GFile) dst = g_file_new_for_path(backup_synctex_gz);
+        g_file_copy(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+    }
+    if (g_file_test(final_synctex, G_FILE_TEST_EXISTS)) {
+        g_autoptr(GFile) src = g_file_new_for_path(final_synctex);
+        g_autoptr(GFile) dst = g_file_new_for_path(backup_synctex);
         g_file_copy(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
     }
 
@@ -156,6 +170,16 @@ static gboolean run_typesetter(SilktexCompiler *self, const char *workfile, cons
             g_autoptr(GFile) dst = g_file_new_for_path(final_pdf);
             g_file_move(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
         }
+        if (g_file_test(backup_synctex_gz, G_FILE_TEST_EXISTS)) {
+            g_autoptr(GFile) src = g_file_new_for_path(backup_synctex_gz);
+            g_autoptr(GFile) dst = g_file_new_for_path(final_synctex_gz);
+            g_file_move(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+        }
+        if (g_file_test(backup_synctex, G_FILE_TEST_EXISTS)) {
+            g_autoptr(GFile) src = g_file_new_for_path(backup_synctex);
+            g_autoptr(GFile) dst = g_file_new_for_path(final_synctex);
+            g_file_move(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+        }
         return FALSE;
     }
 
@@ -170,12 +194,26 @@ static gboolean run_typesetter(SilktexCompiler *self, const char *workfile, cons
     if (success) {
         /* Good run – drop the backup. */
         g_remove(backup_pdf);
-    } else if (g_file_test(backup_pdf, G_FILE_TEST_EXISTS)) {
-        /* Failed run may have truncated the PDF.  Restore the backup so
-         * the preview keeps showing the last good render. */
-        g_autoptr(GFile) src = g_file_new_for_path(backup_pdf);
-        g_autoptr(GFile) dst = g_file_new_for_path(final_pdf);
-        g_file_move(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+        g_remove(backup_synctex_gz);
+        g_remove(backup_synctex);
+    } else {
+        /* Failed run may have truncated artifacts. Restore last-good files so
+         * preview and SyncTeX mappings stay in sync. */
+        if (g_file_test(backup_pdf, G_FILE_TEST_EXISTS)) {
+            g_autoptr(GFile) src = g_file_new_for_path(backup_pdf);
+            g_autoptr(GFile) dst = g_file_new_for_path(final_pdf);
+            g_file_move(src, dst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+        }
+        if (g_file_test(backup_synctex_gz, G_FILE_TEST_EXISTS)) {
+            g_autoptr(GFile) ssrc = g_file_new_for_path(backup_synctex_gz);
+            g_autoptr(GFile) sdst = g_file_new_for_path(final_synctex_gz);
+            g_file_move(ssrc, sdst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+        }
+        if (g_file_test(backup_synctex, G_FILE_TEST_EXISTS)) {
+            g_autoptr(GFile) ssrc = g_file_new_for_path(backup_synctex);
+            g_autoptr(GFile) sdst = g_file_new_for_path(final_synctex);
+            g_file_move(ssrc, sdst, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+        }
     }
 
     return success;

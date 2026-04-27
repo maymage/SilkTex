@@ -38,6 +38,15 @@ static char *run_synctex(const char *args)
     return output;
 }
 
+/* Resolve the directory that contains SyncTeX sidecars for this editor/PDF. */
+static char *resolve_synctex_dir(SilktexEditor *editor, const char *pdf_path)
+{
+    const char *workfile = silktex_editor_get_workfile(editor);
+    if (workfile && *workfile) return g_path_get_dirname(workfile);
+    if (pdf_path && *pdf_path) return g_path_get_dirname(pdf_path);
+    return NULL;
+}
+
 /* Parse a key: value pair from synctex output, e.g. "Page:3\n" → 3 */
 static gboolean parse_int_field(const char *output, const char *key, int *out)
 {
@@ -77,8 +86,12 @@ gboolean silktex_synctex_forward(SilktexEditor *editor, SilktexPreview *preview,
     /* Get cursor line (1-based for synctex) */
     int line = silktex_editor_get_cursor_line(editor) + 1;
 
-    g_autofree char *args =
-        g_strdup_printf("view -i %d:0:\"%s\" -o \"%s\"", line, tex_path, pdf_path);
+    g_autofree char *synctex_dir = resolve_synctex_dir(editor, pdf_path);
+    g_autofree char *args = synctex_dir
+                                ? g_strdup_printf("view -i %d:0:\"%s\" -o \"%s\" -d \"%s\"", line,
+                                                  tex_path, pdf_path, synctex_dir)
+                                : g_strdup_printf("view -i %d:0:\"%s\" -o \"%s\"", line, tex_path,
+                                                  pdf_path);
 
     g_autofree char *out = run_synctex(args);
     if (!out) {
@@ -108,8 +121,13 @@ gboolean silktex_synctex_inverse(SilktexEditor *editor, const char *pdf_path, in
     g_return_val_if_fail(SILKTEX_IS_EDITOR(editor), FALSE);
     g_return_val_if_fail(pdf_path != NULL, FALSE);
 
-    /* synctex edit -o "page:x:y:pdf" */
-    g_autofree char *args = g_strdup_printf("edit -o \"%d:%g:%g:%s\"", page + 1, x, y, pdf_path);
+    /* synctex edit -o "page:x:y:pdf" (with -d to find cached sidecars) */
+    g_autofree char *synctex_dir = resolve_synctex_dir(editor, pdf_path);
+    g_autofree char *args = synctex_dir
+                                ? g_strdup_printf("edit -o \"%d:%g:%g:%s\" -d \"%s\"", page + 1, x,
+                                                  y, pdf_path, synctex_dir)
+                                : g_strdup_printf("edit -o \"%d:%g:%g:%s\"", page + 1, x, y,
+                                                  pdf_path);
 
     g_autofree char *out = run_synctex(args);
     if (!out) {
