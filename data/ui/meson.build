@@ -16,5 +16,9 @@ silktex_resources = gnome.compile_resources(
     '../silktex.gresource.xml',
     c_name:       'silktex',
     dependencies: blueprints,
-    source_dir:   [meson.current_build_dir(), meson.current_source_dir()],
+    source_dir:   [
+        meson.current_build_dir(),
+        meson.current_source_dir(),
+        join_paths(meson.project_source_root(), 'data'),
+    ],
 )
