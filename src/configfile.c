@@ -50,7 +50,7 @@ static const gchar default_config[] =
     "auto_compile = true\n"
     "timer = 1\n"
     "shellescape = false\n"
-    "synctex = false\n"
+    "synctex = true\n"
     "\n"
     "[File]\n"
     "autosaving = true\n"

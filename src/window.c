@@ -797,8 +797,15 @@ static void action_forward_sync(GSimpleAction *a, GVariant *p, gpointer ud)
     if (!e) return;
     const char *pdf = silktex_editor_get_pdffile(e);
     if (!pdf) return;
-    if (!silktex_synctex_forward(e, self->preview, pdf))
-        silktex_window_show_toast(self, _("SyncTeX: synctex not available or no .synctex.gz"));
+    if (!silktex_synctex_forward(e, self->preview, pdf)) {
+        if (g_find_program_in_path("synctex") == NULL) {
+            silktex_window_show_toast(self, _("SyncTeX: 'synctex' command not found in PATH"));
+        } else if (!config_get_boolean("Compile", "synctex")) {
+            silktex_window_show_toast(self, _("SyncTeX: enable in Preferences -> Compile, then recompile"));
+        } else {
+            silktex_window_show_toast(self, _("SyncTeX: no mapping yet, recompile document"));
+        }
+    }
 }
 
 static void on_preview_inverse_sync_requested(SilktexPreview *preview, int page, double x, double y,
@@ -810,8 +817,15 @@ static void on_preview_inverse_sync_requested(SilktexPreview *preview, int page,
     if (!editor) return;
     const char *pdf = silktex_editor_get_pdffile(editor);
     if (!pdf) return;
-    if (!silktex_synctex_inverse(editor, pdf, page, x, y))
-        silktex_window_show_toast(self, _("SyncTeX inverse failed"));
+    if (!silktex_synctex_inverse(editor, pdf, page, x, y)) {
+        if (g_find_program_in_path("synctex") == NULL) {
+            silktex_window_show_toast(self, _("SyncTeX: 'synctex' command not found in PATH"));
+        } else if (!config_get_boolean("Compile", "synctex")) {
+            silktex_window_show_toast(self, _("SyncTeX: enable in Preferences -> Compile, then recompile"));
+        } else {
+            silktex_window_show_toast(self, _("SyncTeX inverse: no mapping at clicked position"));
+        }
+    }
 }
 
 /* -------------------------------------------------------------------------- */

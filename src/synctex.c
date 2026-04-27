@@ -65,7 +65,13 @@ gboolean silktex_synctex_forward(SilktexEditor *editor, SilktexPreview *preview,
     g_return_val_if_fail(SILKTEX_IS_PREVIEW(preview), FALSE);
     g_return_val_if_fail(pdf_path != NULL, FALSE);
 
-    const char *tex_path = silktex_editor_get_filename(editor);
+    /*
+     * Compiler runs TeX on the editor workfile in cache, so SyncTeX records
+     * that path. Querying with the on-disk source filename often returns no
+     * match even though compilation succeeded.
+     */
+    const char *tex_path = silktex_editor_get_workfile(editor);
+    if (!tex_path) tex_path = silktex_editor_get_filename(editor);
     if (!tex_path) return FALSE;
 
     /* Get cursor line (1-based for synctex) */

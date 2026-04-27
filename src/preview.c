@@ -510,7 +510,8 @@ static void on_preview_pressed(GtkGestureClick *gesture, int n_press, double x, 
             if (x >= page_x && x <= page_x + lw && y >= page_y && y <= page_y + lh) {
                 page = self->current_page;
                 pdf_x = (x - page_x) / self->zoom;
-                pdf_y = (y - page_y) / self->zoom;
+                /* SyncTeX expects PDF coordinates with origin at page bottom-left. */
+                pdf_y = self->page_height - ((y - page_y) / self->zoom);
             }
         } else if (self->layout == SILKTEX_PREVIEW_LAYOUT_CONTINUOUS && self->page_surfaces != NULL) {
             int area_w = gtk_widget_get_width(self->drawing_area);
@@ -520,13 +521,23 @@ static void on_preview_pressed(GtkGestureClick *gesture, int n_press, double x, 
                 if (surface == NULL) continue;
                 int lw = surface_logical_width(surface);
                 int lh = surface_logical_height(surface);
+                double page_h = self->page_height;
+                if (page_h <= 0.0) {
+                    PopplerPage *p = poppler_document_get_page(self->document, (int)i);
+                    if (p != NULL) {
+                        double page_w_unused = 0.0;
+                        poppler_page_get_size(p, &page_w_unused, &page_h);
+                        g_object_unref(p);
+                    }
+                }
                 double page_x = (area_w - lw) / 2.0;
                 if (page_x < 0) page_x = PAGE_PADDING;
 
                 if (x >= page_x && x <= page_x + lw && y >= page_y && y <= page_y + lh) {
                     page = (int)i;
                     pdf_x = (x - page_x) / self->zoom;
-                    pdf_y = (y - page_y) / self->zoom;
+                    /* SyncTeX expects PDF coordinates with origin at page bottom-left. */
+                    pdf_y = page_h - ((y - page_y) / self->zoom);
                     break;
                 }
                 page_y += lh + PAGE_GAP_BETWEEN;
