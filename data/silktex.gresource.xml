@@ -3,4 +3,7 @@
   <gresource prefix="/app/silktex">
     <file preprocess="xml-stripblanks">main.ui</file>
   </gresource>
+  <gresource prefix="/app/silktex/icons/hicolor/scalable/actions">
+    <file>git-symbolic.svg</file>
+  </gresource>
 </gresources>

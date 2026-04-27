@@ -1469,6 +1469,7 @@ static void silktex_window_init(SilktexWindow *self)
 
     {
         GtkIconTheme *it = gtk_icon_theme_get_for_display(gdk_display_get_default());
+        gtk_icon_theme_add_resource_path(it, "/app/silktex/icons");
         const char *const export_icons[] = {"document-export-symbolic", "document-save-as-symbolic",
                                             "folder-download-symbolic", "document-save-symbolic",
                                             NULL};
