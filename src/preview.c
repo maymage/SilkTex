@@ -441,14 +441,12 @@
   * Inverse sync (Ctrl+click → editor).
   *
   * GtkGestureClick gives coordinates in the drawing area's own coordinate
-  * space, which starts at (0,0) at the top-left of the *visible* portion —
-  * i.e. it does NOT include the scrolled-away content above the viewport.
-  * We therefore add the current scroll offset to get content coordinates,
-  * then walk the page strip to find which page was hit.
+  * space. The drawing area is the full scrolled child, so coordinates are
+  * already in content space and must not be offset by the adjustments.
   *
-  * PDF coordinate origin is bottom-left (PostScript convention).  Poppler
-  * and SyncTeX both expect (x, y) where y=0 is the bottom of the page, so
-  * we flip: pdf_y = page_height_in_pts - click_y_in_pts.
+  * SyncTeX inverse queries expect page-space coordinates in PDF points with
+  * the origin at the upper-left of the page and y increasing downward, which
+  * matches the rendered Poppler/cairo page space used here.
   * ------------------------------------------------------------------------- */
  static void on_preview_pressed(GtkGestureClick *gesture, int n_press, double click_x,
                                 double click_y, gpointer user_data)
@@ -483,7 +481,7 @@
                  click_y < page_y || click_y > page_y + lh)
                  goto grab_focus;
  
-             /* Convert from canvas pixels → PDF points, flip y to bottom-left origin. */
+             /* Convert from canvas pixels to SyncTeX page points. */
              double pts_x = (click_x - page_x) / self->zoom;
              double pts_y = (click_y - page_y) / self->zoom;
  
@@ -492,25 +490,16 @@
                  double pw, ph;
                  poppler_page_get_size(ppage, &pw, &ph);
                  g_object_unref(ppage);
-                 pdf_x = pts_x;
-                 pdf_y = ph - pts_y;   /* flip to PDF bottom-left origin */
+                 pdf_x = CLAMP(pts_x, 0.0, pw);
+                 pdf_y = CLAMP(pts_y, 0.0, ph);
              }
              page = self->current_page;
  
          } else if (self->layout == SILKTEX_PREVIEW_LAYOUT_CONTINUOUS &&
                     self->page_surfaces != NULL) {
  
-             /* click_y is in drawing-area widget space (visible portion only).
-              * Add the scroll offset to get the position within the full content strip. */
-             GtkAdjustment *vadj =
-                 gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(self->scrolled_window));
-             double scroll_y = vadj ? gtk_adjustment_get_value(vadj) : 0.0;
-             double content_y = click_y + scroll_y;
- 
-             GtkAdjustment *hadj =
-                 gtk_scrolled_window_get_hadjustment(GTK_SCROLLED_WINDOW(self->scrolled_window));
-             double scroll_x = hadj ? gtk_adjustment_get_value(hadj) : 0.0;
-             double content_x = click_x + scroll_x;
+             double content_y = click_y;
+             double content_x = click_x;
  
              /* Width of the full content strip (= drawing area's allocated width). */
              int area_w = gtk_widget_get_width(self->drawing_area);
@@ -537,8 +526,8 @@
                          double pw, ph;
                          poppler_page_get_size(ppage, &pw, &ph);
                          g_object_unref(ppage);
-                         pdf_x = pts_x;
-                         pdf_y = ph - pts_y;   /* flip to PDF bottom-left origin */
+                         pdf_x = CLAMP(pts_x, 0.0, pw);
+                         pdf_y = CLAMP(pts_y, 0.0, ph);
                      }
                      page = (int)i;
                      break;

@@ -136,6 +136,22 @@ void config_init(void)
         config_save();
     }
 
+    g_autofree char *config_version = g_key_file_get_string(key_file, "General", "config_version", NULL);
+    gboolean legacy_config = g_strcmp0(config_version, C_PACKAGE_VERSION) != 0;
+    gboolean legacy_synctex_default = config_version == NULL || g_str_has_prefix(config_version, "0.");
+
+    /* SyncTeX should be enabled by default. Pre-1.0 configs may already
+     * contain synctex=false from the previous default, so migrate those once. */
+    if (!g_key_file_has_key(key_file, "Compile", "synctex", NULL) || legacy_synctex_default) {
+        g_key_file_set_boolean(key_file, "Compile", "synctex", TRUE);
+        config_save();
+    }
+
+    if (legacy_config) {
+        g_key_file_set_string(key_file, "General", "config_version", C_PACKAGE_VERSION);
+        config_save();
+    }
+
     slog(L_INFO, "Configuration file: %s\n", conf_filepath);
 }
 

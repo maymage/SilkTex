@@ -51,7 +51,7 @@ gboolean silktex_preview_get_inverted(SilktexPreview *self);
 /*
  * Signal: "inverse-sync-requested" (int page, double x, double y)
  * Emitted on Ctrl+primary-click inside the rendered PDF page content.
- * Coordinates are in PDF points for SyncTeX inverse search.
+ * Coordinates are in SyncTeX page points: origin at the upper-left, y downward.
  */
 
 G_END_DECLS

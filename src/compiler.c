@@ -334,7 +334,7 @@ static void silktex_compiler_init(SilktexCompiler *self)
 
     self->typesetter = g_strdup("pdflatex");
     self->shell_escape = TRUE;
-    self->synctex = FALSE;
+    self->synctex = TRUE;
     self->keep_running = FALSE;
     self->paused = FALSE;
     self->compiling = FALSE;
