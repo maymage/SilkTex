@@ -1,0 +1,163 @@
+\documentclass[11pt]{beamer} 
+\synctex=1 
+ 
+
+%% Packages
+
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{pgf,graphicx}
+
+
+
+%% Beamer Templates
+
+\mode<presentation>
+{ 
+  %\usetheme{Warsaw}   
+  \usetheme{PaloAlto}   
+  %\usetheme{Goettingen}     
+  %\usetheme{Copenhagen}       
+  %\usetheme{Darmstadt} 
+  %\usetheme{Warsaw} 
+  %\usetheme{Antibes} 
+  
+  \usefonttheme{professionalfonts}
+  %\setbeamertemplate{background}[grid]
+  \setbeamertemplate{background canvas}[vertical shading] 
+  \setbeamercovered{transparent} 
+ 
+%\pgfdeclareimage[height=1.2cm]{LOGO}{FILENAME}
+%\logo{\pgfuseimage{FILENAME}} 
+} 
+ 
+
+     
+%% Bibliography Style
+
+\bibliographystyle{apalike}
+
+
+\usepackage{tikz-cd} 
+\usetikzlibrary{decorations.markings}
+\tikzset{negated/.style={
+        decoration={markings,
+            mark= at position 0.5 with {
+                \node[transform shape] (tempnode) {$\backslash$};
+            }
+        },
+        postaction={decorate}
+    }
+}
+
+
+
+%% Styling 
+
+\beamertemplatenavigationsymbolsempty
+\setlength{\abovedisplayskip}{6pt}
+\setlength{\belowdisplayskip}{6pt}
+  
+  
+%% Newcommands
+  
+
+\newcommand{\R}{\mathbb{R}} 
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Q}{\mathbb{Q}}
+%\newcommand{\horizontalline}{\line(1,0){0.8\textwidth}}  
+
+\newtheorem*{ambteorema}{Discovery}
+
+ 
+ 
+ 
+%% Title 
+
+\title[Running Title]{Maint Title}    
+\author[Details, \today]{Author} 
+\date{\today}
+
+
+
+\begin{document}    
+ 
+
+\section*{First Section}
+
+
+\begin{frame}
+\frametitle{Welcome to SilkTex \hfill
+	\begin{minipage}{0.2\textwidth}
+			\begin{figure}
+				\vspace{-7pt}\hspace{5pt}
+				\includegraphics[height=0.15\textheight]{Silktex.png}
+			\end{figure}
+	\end{minipage}
+			}
+
+\maketitle
+
+\end{frame}
+
+
+
+
+\begin{frame}\frametitle{Frame Title 1}
+
+\begin{ambteorema}[Description of Your Result]
+There holds
+	\begin{align*}
+		A=B
+	\end{align*}
+whenever $A=C$ and $B=C$ for some $C$.
+\end{ambteorema}
+
+
+\pause
+
+
+\begin{proof}
+We leave the proof of this trivial statement to the reader. 
+\end{proof}
+
+\end{frame}
+
+
+\begin{frame}\frametitle{Frame Title 2}
+
+\end{frame}
+
+
+
+
+\section*{Second Section}
+
+
+\begin{frame}\frametitle{Frame Title 3}
+
+\end{frame}
+
+	
+
+
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
