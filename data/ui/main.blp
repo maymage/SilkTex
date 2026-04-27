@@ -207,12 +207,9 @@ template $SilktexWindow : Adw.ApplicationWindow {
 
                     styles ["flat"]
                   }
-                };
-              }
 
-              Gtk.Box {
-                hexpand: true;
-              }
+
+                
 
               Gtk.Separator {
                 orientation: vertical;
@@ -250,10 +247,6 @@ template $SilktexWindow : Adw.ApplicationWindow {
                 styles ["flat"]
               }
 
-              Gtk.Box {
-                hexpand: true;
-              }
-
               Gtk.Separator {
                 orientation: vertical;
               }
@@ -265,6 +258,8 @@ template $SilktexWindow : Adw.ApplicationWindow {
 
                 styles ["flat"]
               }
+            };
+          }
 
               Gtk.Box {
                 orientation: horizontal;
@@ -287,7 +282,6 @@ template $SilktexWindow : Adw.ApplicationWindow {
                   styles ["flat"]
                 }
               }
-
               Gtk.Box tools_split_extra {
                 orientation: horizontal;
                 spacing: 0;
