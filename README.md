@@ -150,7 +150,7 @@ meson.build            top-level meson project
   `GActionEntry` arrays, fixed-signature GTK callbacks) are silenced
   project-wide via `-Wno-missing-field-initializers` and
   `-Wno-unused-parameter`.
-- Default Git branch: `feat/cursor`.
+- Default Git branch: `master`.
 
 ## License
 
