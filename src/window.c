@@ -1099,7 +1099,7 @@ static void apply_editor_pane_restore(SilktexWindow *self)
     int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
     if (w < 1) return;
 
-    if (!self->preview_pane_restorable) {
+    if (!self->preview_split_seeded || !self->preview_pane_restorable) {
         silktex_window_apply_editor_paned_half_split(self);
         return;
     }
@@ -1118,7 +1118,12 @@ static void apply_editor_pane_restore(SilktexWindow *self)
 
 static gboolean idle_restore_editor_pane(gpointer user_data)
 {
-    apply_editor_pane_restore(SILKTEX_WINDOW(user_data));
+    SilktexWindow *self = SILKTEX_WINDOW(user_data);
+    if (!self || !self->editor_paned) return G_SOURCE_REMOVE;
+
+    if (gtk_widget_get_width(GTK_WIDGET(self->editor_paned)) < 1) return G_SOURCE_CONTINUE;
+
+    apply_editor_pane_restore(self);
     return G_SOURCE_REMOVE;
 }
 
