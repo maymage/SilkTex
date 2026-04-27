@@ -801,6 +801,19 @@ static void action_forward_sync(GSimpleAction *a, GVariant *p, gpointer ud)
         silktex_window_show_toast(self, _("SyncTeX: synctex not available or no .synctex.gz"));
 }
 
+static void on_preview_inverse_sync_requested(SilktexPreview *preview, int page, double x, double y,
+                                              gpointer user_data)
+{
+    (void)preview;
+    SilktexWindow *self = SILKTEX_WINDOW(user_data);
+    SilktexEditor *editor = silktex_window_get_active_editor(self);
+    if (!editor) return;
+    const char *pdf = silktex_editor_get_pdffile(editor);
+    if (!pdf) return;
+    if (!silktex_synctex_inverse(editor, pdf, page, x, y))
+        silktex_window_show_toast(self, _("SyncTeX inverse failed"));
+}
+
 /* -------------------------------------------------------------------------- */
 /* Chrome toggles, preferences, fullscreen, outline refresh */
 
@@ -1607,6 +1620,8 @@ static void silktex_window_init(SilktexWindow *self)
 
     g_signal_connect(self->preview, "notify::page", G_CALLBACK(on_preview_page_changed), self);
     g_signal_connect(self->preview, "notify::n-pages", G_CALLBACK(on_preview_page_changed), self);
+    g_signal_connect(self->preview, "inverse-sync-requested",
+                     G_CALLBACK(on_preview_inverse_sync_requested), self);
 
     /* ---- structure sidebar ---- */
     self->structure = silktex_structure_new();

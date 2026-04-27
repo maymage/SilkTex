@@ -63,8 +63,10 @@ struct _SilktexPreview {
 G_DEFINE_FINAL_TYPE (SilktexPreview, silktex_preview, GTK_TYPE_WIDGET)
 
 enum { PROP_0, PROP_PAGE, PROP_N_PAGES, PROP_ZOOM, PROP_LAYOUT, N_PROPS };
+enum { SIGNAL_INVERSE_SYNC_REQUESTED, N_SIGNALS };
 
 static GParamSpec *properties[N_PROPS];
+static guint signals[N_SIGNALS];
 
 static void silktex_preview_invalidate_cache(SilktexPreview *self)
 {
@@ -441,6 +443,9 @@ static void silktex_preview_class_init(SilktexPreviewClass *klass)
     properties[PROP_LAYOUT] = g_param_spec_int("layout", NULL, NULL, 0, 1, 0, G_PARAM_READWRITE);
 
     g_object_class_install_properties(object_class, N_PROPS, properties);
+    signals[SIGNAL_INVERSE_SYNC_REQUESTED] = g_signal_new(
+        "inverse-sync-requested", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+        G_TYPE_NONE, 3, G_TYPE_INT, G_TYPE_DOUBLE, G_TYPE_DOUBLE);
 
     gtk_widget_class_set_layout_manager_type(widget_class, GTK_TYPE_BIN_LAYOUT);
 }
@@ -481,11 +486,58 @@ static void on_vadj_value_changed(GtkAdjustment *adj, gpointer user_data)
 static void on_preview_pressed(GtkGestureClick *gesture, int n_press, double x, double y,
                                gpointer user_data)
 {
-    (void)gesture;
-    (void)n_press;
-    (void)x;
-    (void)y;
     SilktexPreview *self = SILKTEX_PREVIEW(user_data);
+    GdkModifierType state =
+        gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
+
+    if (n_press == 1 && (state & GDK_CONTROL_MASK) != 0) {
+        int page = -1;
+        double pdf_x = 0.0;
+        double pdf_y = 0.0;
+
+        silktex_preview_render_pages(self);
+
+        if (self->layout == SILKTEX_PREVIEW_LAYOUT_SINGLE_PAGE && self->cached_surface != NULL) {
+            int lw = surface_logical_width(self->cached_surface);
+            int lh = surface_logical_height(self->cached_surface);
+            int area_w = gtk_widget_get_width(self->drawing_area);
+            int area_h = gtk_widget_get_height(self->drawing_area);
+
+            double page_x = (area_w - lw) / 2.0;
+            if (page_x < 0) page_x = PAGE_PADDING;
+            double page_y = MAX((double)PAGE_PADDING, (area_h - lh) / 2.0);
+
+            if (x >= page_x && x <= page_x + lw && y >= page_y && y <= page_y + lh) {
+                page = self->current_page;
+                pdf_x = (x - page_x) / self->zoom;
+                pdf_y = (y - page_y) / self->zoom;
+            }
+        } else if (self->layout == SILKTEX_PREVIEW_LAYOUT_CONTINUOUS && self->page_surfaces != NULL) {
+            int area_w = gtk_widget_get_width(self->drawing_area);
+            double page_y = PAGE_PADDING;
+            for (guint i = 0; i < self->page_surfaces->len; i++) {
+                cairo_surface_t *surface = g_ptr_array_index(self->page_surfaces, i);
+                if (surface == NULL) continue;
+                int lw = surface_logical_width(surface);
+                int lh = surface_logical_height(surface);
+                double page_x = (area_w - lw) / 2.0;
+                if (page_x < 0) page_x = PAGE_PADDING;
+
+                if (x >= page_x && x <= page_x + lw && y >= page_y && y <= page_y + lh) {
+                    page = (int)i;
+                    pdf_x = (x - page_x) / self->zoom;
+                    pdf_y = (y - page_y) / self->zoom;
+                    break;
+                }
+                page_y += lh + PAGE_GAP_BETWEEN;
+            }
+        }
+
+        if (page >= 0) {
+            g_signal_emit(self, signals[SIGNAL_INVERSE_SYNC_REQUESTED], 0, page, pdf_x, pdf_y);
+        }
+    }
+
     gtk_widget_grab_focus(self->scrolled_window);
 }
 
