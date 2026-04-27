@@ -36,8 +36,8 @@ G_BEGIN_DECLS
  * The window minimum width is derived so a horizontal GtkPaned never ends up
  * with zero room for one of the panes (which breaks the layout on small sizes).
  */
-#define SILKTEX_EDITOR_MIN_WIDTH 350
-#define SILKTEX_PREVIEW_PANE_MIN_WIDTH 390
+#define SILKTEX_EDITOR_MIN_WIDTH 390
+#define SILKTEX_PREVIEW_PANE_MIN_WIDTH 400
 #define SILKTEX_WINDOW_MIN_WIDTH (SILKTEX_EDITOR_MIN_WIDTH + SILKTEX_PREVIEW_PANE_MIN_WIDTH + 72)
 #define SILKTEX_WINDOW_MIN_HEIGHT 400
 
