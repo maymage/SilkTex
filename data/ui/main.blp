@@ -250,10 +250,7 @@ Adw.ToolbarView editor_toolbar_view {
       Gtk.Revealer revealer_right {
         transition-type: slide_left;
         reveal-child: bind btn_tools_toggle.active;
-        child: 
-        Gtk.Box tools_split_extra {
-          orientation: horizontal;
-          spacing: 2;Gtk.Box tools_toggle_git_group {
+        child:Gtk.Box tools_toggle_git_group {
         orientation: horizontal;
         spacing: 0;
         Gtk.MenuButton btn_git_menu {
@@ -262,7 +259,7 @@ Adw.ToolbarView editor_toolbar_view {
           menu-model: git_menu;
           styles ["flat"]
         }
-      }
+      
 
       Gtk.Box {
         orientation: horizontal;
@@ -281,10 +278,9 @@ Adw.ToolbarView editor_toolbar_view {
           styles ["flat"]
         }
       }
-        };
-      }
-
       
+      };
+      } 
     } 
   }
 }

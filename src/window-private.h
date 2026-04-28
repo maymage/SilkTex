@@ -55,7 +55,6 @@ struct _SilktexWindow {
     GtkPaned *editor_paned;
     AdwToolbarView *editor_toolbar_view;
     GtkBox *editor_bottom_bar;
-    GtkBox *tools_split_extra;
     AdwToolbarView *preview_toolbar_view;
     GtkBox *preview_box;
     GtkBox *structure_container;
@@ -81,7 +80,6 @@ struct _SilktexWindow {
 
     GtkRevealer *log_revealer;
     GtkTextBuffer *log_buf;
-    GtkToggleButton *log_toggle;
     GtkWidget *log_text_view;
 
     /* Theme swatch toggles — owned by window-primary-menu.c popover */

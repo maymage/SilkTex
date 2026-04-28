@@ -231,7 +231,8 @@ static void on_compile_finished(SilktexCompiler *compiler, gpointer user_data)
     }
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compiled"));
-    if (self->log_toggle) gtk_widget_remove_css_class(GTK_WIDGET(self->log_toggle), "error");
+    if (self->log_revealer)
+        gtk_widget_remove_css_class(GTK_WIDGET(self->log_revealer), "error");
     if (self->btn_compile) gtk_widget_remove_css_class(GTK_WIDGET(self->btn_compile), "error");
 }
 
@@ -241,7 +242,8 @@ static void on_compile_error(SilktexCompiler *compiler, gpointer user_data)
     silktex_window_show_toast(self, _("Compilation error — see compile log"));
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compile error"));
-    if (self->log_toggle) gtk_widget_add_css_class(GTK_WIDGET(self->log_toggle), "error");
+    if (self->log_revealer)
+        gtk_widget_add_css_class(GTK_WIDGET(self->log_revealer), "error");
     if (self->btn_compile) gtk_widget_add_css_class(GTK_WIDGET(self->btn_compile), "error");
 
     /*
@@ -868,17 +870,20 @@ static void action_fullscreen(GSimpleAction *a, GVariant *p, gpointer ud)
 
 static void action_toggle_log(GSimpleAction *a, GVariant *p, gpointer ud)
 {
+    (void)a;
+    (void)p;
     SilktexWindow *self = SILKTEX_WINDOW(ud);
-    if (!self->log_toggle) return;
-    gboolean active = gtk_toggle_button_get_active(self->log_toggle);
-    gtk_toggle_button_set_active(self->log_toggle, !active);
+    if (!self->log_revealer) return;
+    gboolean vis = gtk_revealer_get_reveal_child(self->log_revealer);
+    gtk_revealer_set_reveal_child(self->log_revealer, !vis);
 }
 
-static void on_log_toggle_active(GtkToggleButton *button, GParamSpec *pspec, gpointer user_data)
+static void on_log_revealer_reveal_changed(GtkRevealer *revealer, GParamSpec *pspec,
+                                           gpointer user_data)
 {
     (void)pspec;
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
-    if (gtk_toggle_button_get_active(button)) {
+    if (gtk_revealer_get_reveal_child(revealer)) {
         if (self->log_text_view) gtk_widget_grab_focus(self->log_text_view);
     } else {
         silktex_window_focus_active_editor(self);
@@ -1461,7 +1466,6 @@ static void silktex_window_class_init(SilktexWindowClass *klass)
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_paned);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_toolbar_view);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_bottom_bar);
-    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, tools_split_extra);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, preview_toolbar_view);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, preview_box);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, structure_container);
@@ -1527,6 +1531,10 @@ void silktex_window_install_chrome_css(void)
         "revealer.silktex-compile-log > * {"
         "  box-shadow: none;"
         "  border: none;"
+        "}"
+        "revealer.silktex-compile-log.error {"
+        "  outline: 2px solid @error_color;"
+        "  outline-offset: -2px;"
         "}"
         "togglebutton.error {"
         "  color: @error_color;"
@@ -1676,8 +1684,7 @@ static void silktex_window_init(SilktexWindow *self)
     /* ---- compile log panel ----
      *
      * Revealer sits as a *bottom* bar of the editor ToolbarView, just above
-     * the editor_bottom_bar.  The toggle that opens / closes it is appended
-     * into the split-out tools group so save/log can collapse together. */
+     * editor_bottom_bar. Open/close via Document → Compile log (win.toggle-log). */
     {
         GtkWidget *revealer = gtk_revealer_new();
         gtk_widget_add_css_class(revealer, "silktex-compile-log");
@@ -1685,6 +1692,8 @@ static void silktex_window_init(SilktexWindow *self)
                                          GTK_REVEALER_TRANSITION_TYPE_SLIDE_UP);
         gtk_revealer_set_reveal_child(GTK_REVEALER(revealer), FALSE);
         self->log_revealer = GTK_REVEALER(revealer);
+        g_signal_connect(revealer, "notify::reveal-child",
+                         G_CALLBACK(on_log_revealer_reveal_changed), self);
 
         self->log_buf = gtk_text_buffer_new(NULL);
         GtkWidget *log_tv = gtk_text_view_new_with_buffer(self->log_buf);
@@ -1703,18 +1712,6 @@ static void silktex_window_init(SilktexWindow *self)
         if (self->editor_toolbar_view) {
             adw_toolbar_view_add_bottom_bar(self->editor_toolbar_view, revealer);
         }
-
-        GtkWidget *log_toggle = gtk_toggle_button_new_with_label(_("Log"));
-        gtk_widget_set_tooltip_text(log_toggle, _("Log"));
-        gtk_widget_add_css_class(log_toggle, "flat");
-        self->log_toggle = GTK_TOGGLE_BUTTON(log_toggle);
-
-        if (self->tools_split_extra) {
-            gtk_box_append(self->tools_split_extra, log_toggle);
-        }
-
-        g_object_bind_property(log_toggle, "active", revealer, "reveal-child", G_BINDING_DEFAULT);
-        g_signal_connect(log_toggle, "notify::active", G_CALLBACK(on_log_toggle_active), self);
     }
 
     if (self->btn_tools_toggle) {
