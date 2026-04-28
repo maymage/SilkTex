@@ -618,11 +618,10 @@ void silktex_editor_apply_settings(SilktexEditor *self)
         self->view, config_get_boolean("Editor", "spaces_instof_tabs"));
     gtk_source_view_set_tab_width(self->view, (guint)config_get_integer("Editor", "tabwidth"));
 
-    GtkWrapMode wrap = GTK_WRAP_NONE;
-    if (config_get_boolean("Editor", "textwrapping")) {
-        wrap = config_get_boolean("Editor", "wordwrapping") ? GTK_WRAP_WORD : GTK_WRAP_CHAR;
-    }
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(self->view), wrap);
+    /* Keep the editor anchored on the left pane and soft-wrap at the pane edge
+     * (where editor and preview meet), rather than extending long lines
+     * horizontally. */
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(self->view), GTK_WRAP_WORD_CHAR);
 
     silktex_editor_set_style_scheme(self, silktex_resolved_style_scheme_id());
 

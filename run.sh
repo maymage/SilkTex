@@ -9,6 +9,7 @@
 #   ./run.sh              # incremental build + run
 #   ./run.sh --clean      # wipe build dir, reconfigure, rebuild, run
 #   ./run.sh --rebuild    # force a full reconfigure without wiping
+#   ./run.sh --detach     # launch and return terminal immediately
 #   ./run.sh -- <args>    # pass extra arguments through to silktex
 #
 # Any arguments after `--` are forwarded to the silktex binary.
@@ -20,12 +21,14 @@ cd "$(dirname "$(readlink -f "$0")")"
 BUILD_DIR="build-gtk4"
 CLEAN=0
 RECONFIGURE=0
+DETACH=0
 APP_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --clean)    CLEAN=1; shift ;;
         --rebuild)  RECONFIGURE=1; shift ;;
+        --detach)   DETACH=1; shift ;;
         -h|--help)
             sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
@@ -54,5 +57,19 @@ fi
 
 nix develop --command ninja -C "$BUILD_DIR"
 
-echo ">> launching silktex"
-exec nix develop --command "$BUILD_DIR/src/silktex" "${APP_ARGS[@]}"
+# Avoid Vulkan-specific issues/warnings on some Mesa/NixOS setups unless
+# the user explicitly set a renderer.
+GSK_RENDERER_VALUE="${GSK_RENDERER:-ngl}"
+
+if [[ $DETACH -eq 1 ]]; then
+    echo ">> launching silktex (detached, GSK_RENDERER=$GSK_RENDERER_VALUE)"
+    nix develop --command env GSK_RENDERER="$GSK_RENDERER_VALUE" \
+        "$BUILD_DIR/src/silktex" "${APP_ARGS[@]}" >/dev/null 2>&1 &
+    disown || true
+    exit 0
+fi
+
+echo ">> launching silktex (foreground, GSK_RENDERER=$GSK_RENDERER_VALUE)"
+echo ">> this keeps the terminal attached while the app is running (Ctrl+C to stop)"
+exec nix develop --command env GSK_RENDERER="$GSK_RENDERER_VALUE" \
+    "$BUILD_DIR/src/silktex" "${APP_ARGS[@]}"

@@ -67,7 +67,7 @@ template $SilktexWindow : Adw.ApplicationWindow {
       autohide: true;
     }
 
-    content: Adw.ToastOverlay toast_overlay {
+content: Adw.ToastOverlay toast_overlay {
       child: Adw.OverlaySplitView split_view {
         show-sidebar: bind btn_sidebar.active bidirectional;
         sidebar-position: start;
@@ -137,7 +137,7 @@ template $SilktexWindow : Adw.ApplicationWindow {
 Adw.ToolbarView editor_toolbar_view {
   content: Adw.TabView tab_view {
     vexpand: true;
-    hexpand: true;
+    hexpand: false;
   };
   [bottom]
   Gtk.Box editor_bottom_bar {
@@ -162,7 +162,7 @@ Adw.ToolbarView editor_toolbar_view {
           icon-name: "media-playback-start-symbolic";
           tooltip-text: _("Compile");
           action-name: "win.compile";
-          styles ["flat"]
+          styles ["linked"]
         }
         Gtk.MenuButton {
           icon-name: "pan-down-symbolic";
@@ -183,19 +183,20 @@ Adw.ToolbarView editor_toolbar_view {
         reveal-child: bind btn_tools_toggle.active bidirectional;
         child: Gtk.Box {
           orientation: horizontal;
-          spacing: 2;
-          Gtk.Separator { orientation: vertical; }
+          spacing: 0;
+          styles ["linked"]
+          
           Gtk.MenuButton btn_insert {
             icon-name: "insert-object-symbolic";
             tooltip-text: _("Insert");
             menu-model: insert_menu;
-            styles ["flat"]
+            styles ["linked"]
           }
           Gtk.MenuButton btn_format {
             icon-name: "format-text-bold-symbolic";
             tooltip-text: _("Format");
             menu-model: format_menu;
-            styles ["flat"]
+            styles ["linked"]
           }
         };
       }
@@ -249,16 +250,12 @@ Adw.ToolbarView editor_toolbar_view {
       Gtk.Revealer revealer_right {
         transition-type: slide_left;
         reveal-child: bind btn_tools_toggle.active;
-        child: Gtk.Box tools_split_extra {
+        child: 
+        Gtk.Box tools_split_extra {
           orientation: horizontal;
-          spacing: 2;
-        };
-      }
-
-      Gtk.Box tools_toggle_git_group {
+          spacing: 2;Gtk.Box tools_toggle_git_group {
         orientation: horizontal;
         spacing: 0;
-        Gtk.Separator { orientation: vertical; }
         Gtk.MenuButton btn_git_menu {
           icon-name: "git-symbolic";
           tooltip-text: _("Git");
@@ -284,6 +281,10 @@ Adw.ToolbarView editor_toolbar_view {
           styles ["flat"]
         }
       }
+        };
+      }
+
+      
     } 
   }
 }
