@@ -248,10 +248,34 @@ Adw.ToolbarView editor_toolbar_view {
     }
 
     Gtk.Box {
-        orientation: horizontal;
-        spacing: 0;
-        styles ["linked"]
-        Gtk.Box tools_split_extra {
+      orientation: horizontal;
+      spacing: 2;
+
+      Gtk.Revealer revealer_right {
+        transition-type: slide_left;
+        reveal-child: bind btn_tools_toggle.active;
+        child: Gtk.Box {
+          orientation: horizontal;
+          spacing: 2;
+          Gtk.Box tools_split_extra {
+            orientation: horizontal;
+            spacing: 2;
+          }
+          Gtk.Box {
+            orientation: horizontal;
+            spacing: 0;
+            Gtk.Separator { orientation: vertical; }
+            Gtk.MenuButton btn_git_menu {
+              icon-name: "git-symbolic";
+              tooltip-text: _("Git");
+              menu-model: git_menu;
+              styles ["flat"]
+            }
+          }
+        };
+      }
+
+      Gtk.Box {
         orientation: horizontal;
         spacing: 0;
         }
