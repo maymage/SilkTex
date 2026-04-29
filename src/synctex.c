@@ -166,7 +166,7 @@ gboolean silktex_synctex_forward(SilktexEditor *editor, SilktexPreview *preview,
     }
 
     silktex_preview_set_page(preview, page - 1);
-    /* TODO: scroll to x/y within the page once the preview exposes such API */
+    silktex_preview_scroll_to_position(preview, x, y);
     return TRUE;
 }
 

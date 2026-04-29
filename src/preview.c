@@ -50,6 +50,7 @@ struct _SilktexPreview {
     gboolean scrolling_programmatically;
     gboolean inverted;
     gulong scale_factor_handler;
+    guint fit_tick_id;
 };
 
 G_DEFINE_FINAL_TYPE (SilktexPreview, silktex_preview, GTK_TYPE_WIDGET)
@@ -661,6 +662,19 @@ gboolean silktex_preview_load_file(SilktexPreview *self, const char *path)
     g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_N_PAGES]);
     g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_PAGE]);
 
+    if (self->n_pages > 0) {
+        PopplerPage *p0 = poppler_document_get_page(self->document, 0);
+        if (p0) {
+            poppler_page_get_size(p0, &self->page_width, &self->page_height);
+            g_object_unref(p0);
+        }
+    }
+
+    if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH)
+        silktex_preview_zoom_fit_width(self);
+    else if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_PAGE)
+        silktex_preview_zoom_fit_page(self);
+
     gtk_widget_queue_draw(self->drawing_area);
     return TRUE;
 }
@@ -777,21 +791,47 @@ void silktex_preview_set_zoom(SilktexPreview *self, double zoom)
 void silktex_preview_zoom_in(SilktexPreview *self)
 {
     g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+    if (self->zoom_mode != SILKTEX_PREVIEW_ZOOM_CUSTOM) return;
     silktex_preview_set_zoom(self, self->zoom * 1.2);
 }
 
 void silktex_preview_zoom_out(SilktexPreview *self)
 {
     g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+    if (self->zoom_mode != SILKTEX_PREVIEW_ZOOM_CUSTOM) return;
     silktex_preview_set_zoom(self, self->zoom / 1.2);
+}
+
+static gboolean fit_zoom_tick(GtkWidget *widget, GdkFrameClock *clock, gpointer data)
+{
+    (void)clock;
+    (void)data;
+    SilktexPreview *self = SILKTEX_PREVIEW(widget);
+    if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH) {
+        silktex_preview_zoom_fit_width(self);
+        return G_SOURCE_CONTINUE;
+    }
+    if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_PAGE) {
+        silktex_preview_zoom_fit_page(self);
+        return G_SOURCE_CONTINUE;
+    }
+    self->fit_tick_id = 0;
+    return G_SOURCE_REMOVE;
+}
+
+static void ensure_fit_tick(SilktexPreview *self)
+{
+    if (self->fit_tick_id == 0)
+        self->fit_tick_id = gtk_widget_add_tick_callback(GTK_WIDGET(self), fit_zoom_tick, NULL, NULL);
 }
 
 void silktex_preview_zoom_fit_width(SilktexPreview *self)
 {
     g_return_if_fail(SILKTEX_IS_PREVIEW(self));
     self->zoom_mode = SILKTEX_PREVIEW_ZOOM_FIT_WIDTH;
+    ensure_fit_tick(self);
     if (self->document == NULL) return;
-    int widget_width = gtk_widget_get_width(self->scrolled_window);
+    int widget_width = gtk_widget_get_width(GTK_WIDGET(self));
     if (widget_width > 0 && self->page_width > 0) {
         double new_zoom = (widget_width - 2 * PAGE_PADDING) / self->page_width;
         if (new_zoom < 0.1) new_zoom = 0.1;
@@ -809,9 +849,10 @@ void silktex_preview_zoom_fit_page(SilktexPreview *self)
 {
     g_return_if_fail(SILKTEX_IS_PREVIEW(self));
     self->zoom_mode = SILKTEX_PREVIEW_ZOOM_FIT_PAGE;
+    ensure_fit_tick(self);
     if (self->document == NULL) return;
-    int widget_width = gtk_widget_get_width(self->scrolled_window);
-    int widget_height = gtk_widget_get_height(self->scrolled_window);
+    int widget_width = gtk_widget_get_width(GTK_WIDGET(self));
+    int widget_height = gtk_widget_get_height(GTK_WIDGET(self));
     if (widget_width > 0 && widget_height > 0 && self->page_width > 0 && self->page_height > 0) {
         double zoom_w = (widget_width - 2 * PAGE_PADDING) / self->page_width;
         double zoom_h = (widget_height - 2 * PAGE_PADDING) / self->page_height;
