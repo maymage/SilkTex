@@ -7,6 +7,12 @@ build-flatpak-repo/
 .flatpak-builder/
 flatpak/.local.*.yml
 app.silktex.SilkTex.flatpak
+.clang-format
+.clangd
+.editorconfig
+.github/
+.gitignore
+.vscode/
 
 # Editor / OS
 .DS_Store

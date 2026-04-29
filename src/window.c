@@ -2,18 +2,6 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * SilktexWindow — main application window: GObject type, template wiring,
- * timers, tabbed editors, file dialogs, LaTeX actions, preview layout,
- * compiler integration, and the bulk of win.* GActions.
- *
- * Companion translation units (same struct, see window-private.h):
- *   window-git.c           — Git dialog and git-* actions
- *   window-primary-menu.c  — Hamburger menu, theme, recent, shortcuts
- *
- * Editor ↔ tab association: each tab's page child is a GtkScrolledWindow
- * holding the GtkSourceView; g_object_get_data(..., "silktex-editor") stores
- * the SilktexEditor (see silktex_window_editor_for_page).
  */
 
 #include "window-private.h"
@@ -34,9 +22,6 @@
 #endif
 
 G_DEFINE_FINAL_TYPE (SilktexWindow, silktex_window, ADW_TYPE_APPLICATION_WINDOW)
-
-    /* -------------------------------------------------------------------------- */
-    /* Title, log, theme — shared with menu / git modules via window-private.h */
 
     SilktexEditor *silktex_window_editor_for_page(AdwTabPage *page)
     {
@@ -87,10 +72,6 @@ void silktex_window_update_log_panel(SilktexWindow *self)
     gtk_text_buffer_set_text(self->log_buf, log ? log : "", -1);
 }
 
-/*
- * GtkSourceView scheme id — combines Adwaita dark/light, "lightsout", and
- * optional fixed scheme from preferences (see style-schemes.c).
- */
 void silktex_window_apply_theme_to_editor(SilktexEditor *editor)
 {
     if (editor != NULL) silktex_editor_set_style_scheme(editor, silktex_resolved_style_scheme_id());
@@ -131,13 +112,6 @@ static void add_to_recent(GFile *file)
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/*
- * Compile timer: one-shot after last edit (when auto_compile is on).
- * Autosave timer: periodic save of modified tabs with on-disk paths; also
- * refreshes git status so the dialog stays roughly in sync.
- */
-
 static gboolean on_compile_timer(gpointer user_data)
 {
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
@@ -146,8 +120,7 @@ static gboolean on_compile_timer(gpointer user_data)
     if (self->auto_compile) {
         SilktexEditor *editor = silktex_window_get_active_editor(self);
         if (editor != NULL) {
-            /* Snapshot the buffer on the UI thread; the compile worker is
-             * forbidden from touching GtkTextBuffer. */
+            /* Snapshot on the UI thread — compile worker must not touch GtkTextBuffer. */
             silktex_editor_update_workfile(editor);
             silktex_compiler_request_compile(self->compiler, editor);
         }
@@ -200,9 +173,6 @@ void silktex_window_restart_autosave_timer(SilktexWindow *self)
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Editor / compiler / preview signals */
-
 static void on_editor_changed(SilktexEditor *editor, gpointer user_data)
 {
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
@@ -231,8 +201,7 @@ static void on_compile_finished(SilktexCompiler *compiler, gpointer user_data)
     }
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compiled"));
-    if (self->log_scroll)
-        gtk_widget_remove_css_class(GTK_WIDGET(self->log_scroll), "error");
+    if (self->log_scroll) gtk_widget_remove_css_class(GTK_WIDGET(self->log_scroll), "error");
     if (self->btn_compile) gtk_widget_remove_css_class(GTK_WIDGET(self->btn_compile), "error");
 }
 
@@ -242,16 +211,10 @@ static void on_compile_error(SilktexCompiler *compiler, gpointer user_data)
     silktex_window_show_toast(self, _("Compilation error — see compile log"));
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compile error"));
-    if (self->log_scroll)
-        gtk_widget_add_css_class(GTK_WIDGET(self->log_scroll), "error");
+    if (self->log_scroll) gtk_widget_add_css_class(GTK_WIDGET(self->log_scroll), "error");
     if (self->btn_compile) gtk_widget_add_css_class(GTK_WIDGET(self->btn_compile), "error");
 
-    /*
-     * The compiler restores the last-good PDF on failure, so if the
-     * preview hasn't loaded anything yet (e.g. the user opened a file
-     * whose first auto-compile failed) we still try to surface that
-     * preserved PDF here.
-     */
+    /* Compiler restored last-good PDF on failure; load it if it exists. */
     SilktexEditor *editor = silktex_window_get_active_editor(self);
     if (editor != NULL) {
         const char *pdffile = silktex_editor_get_pdffile(editor);
@@ -272,16 +235,16 @@ static void on_preview_zoom_changed(GObject *p, GParamSpec *ps, gpointer ud)
     if (!self->preview) return;
 
     SilktexPreviewZoomMode mode = silktex_preview_get_zoom_mode(self->preview);
-    
+
     GAction *fit_width_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit");
     if (fit_width_action) {
-        g_simple_action_set_state(G_SIMPLE_ACTION(fit_width_action), 
+        g_simple_action_set_state(G_SIMPLE_ACTION(fit_width_action),
                                   g_variant_new_boolean(mode == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH));
     }
-    
+
     GAction *fit_page_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit-page");
     if (fit_page_action) {
-        g_simple_action_set_state(G_SIMPLE_ACTION(fit_page_action), 
+        g_simple_action_set_state(G_SIMPLE_ACTION(fit_page_action),
                                   g_variant_new_boolean(mode == SILKTEX_PREVIEW_ZOOM_FIT_PAGE));
     }
 }
@@ -289,16 +252,13 @@ static void on_preview_zoom_changed(GObject *p, GParamSpec *ps, gpointer ud)
 static gboolean on_editor_scroll_zoom(GtkEventControllerScroll *ctrl, double dx, double dy,
                                       gpointer user_data);
 
-/* -------------------------------------------------------------------------- */
-/* Tab page widget — scrollable editor view, ref stored as object data */
-
 GtkWidget *silktex_window_create_editor_page(SilktexWindow *self, SilktexEditor *editor)
 {
     GtkWidget *scrolled = gtk_scrolled_window_new();
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_NEVER,
                                    GTK_POLICY_AUTOMATIC);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), silktex_editor_get_view(editor));
-    /* Place vertical scrollbar to the left of the text (LTR: GTK_CORNER_TOP_RIGHT). */
+    /* GTK_CORNER_TOP_RIGHT places the scrollbar on the left in LTR layouts. */
     gtk_scrolled_window_set_placement(GTK_SCROLLED_WINDOW(scrolled), GTK_CORNER_TOP_RIGHT);
     gtk_widget_set_vexpand(scrolled, TRUE);
     gtk_widget_set_hexpand(scrolled, TRUE);
@@ -332,9 +292,6 @@ static gboolean on_editor_scroll_zoom(GtkEventControllerScroll *ctrl, double dx,
         gtk_widget_activate_action(GTK_WIDGET(self), "win.zoom-out", NULL);
     return GDK_EVENT_STOP;
 }
-
-/* -------------------------------------------------------------------------- */
-/* File dialogs — GtkFileDialog async callbacks */
 
 static void action_new(GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
@@ -404,10 +361,7 @@ static void on_save_response(GObject *source, GAsyncResult *result, gpointer use
         return;
     }
 
-    /* Ensure the chosen file ends in a recognised LaTeX extension.
-     * GtkFileDialog has no auto-suffix API, so users who type "mydoc"
-     * would otherwise get an extensionless file that pdflatex can't
-     * handle. */
+    /* GtkFileDialog has no auto-suffix API — append .tex if the user typed a bare name. */
     g_autofree char *picked_path = g_file_get_path(file);
     if (picked_path) {
         g_autofree char *lower = g_ascii_strdown(picked_path, -1);
@@ -465,14 +419,8 @@ static GFile *build_default_save_folder(SilktexWindow *self)
     return NULL;
 }
 
-/*
- * Configure a GtkFileDialog for saving a .tex document.  We attach a
- * dedicated LaTeX filter (so the dialog's file-type picker defaults to
- * ".tex") and pre-fill the filename with a ".tex" extension — GtkFileDialog
- * does not provide an automatic suffix API, so this is the cleanest way
- * to ensure the user ends up with a .tex file.
- */
-static void configure_tex_save_dialog(GtkFileDialog *dialog, SilktexWindow *self, SilktexEditor *editor)
+static void configure_tex_save_dialog(GtkFileDialog *dialog, SilktexWindow *self,
+                                      SilktexEditor *editor)
 {
     GtkFileFilter *tex_filter = gtk_file_filter_new();
     gtk_file_filter_set_name(tex_filter, _("LaTeX (*.tex)"));
@@ -552,9 +500,6 @@ static void action_save_as(GSimpleAction *action, GVariant *parameter, gpointer 
     gtk_file_dialog_save(dialog, GTK_WINDOW(self), NULL, on_save_response, self);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Export PDF — copy from compiler output path to user-chosen location */
-
 static void on_export_response(GObject *source, GAsyncResult *res, gpointer user_data)
 {
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
@@ -604,18 +549,12 @@ static void action_export_pdf(GSimpleAction *a, GVariant *p, gpointer ud)
     gtk_file_dialog_save(dlg, GTK_WINDOW(self), NULL, on_export_response, self);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Close current tab (unsaved guard is on_close_page) */
-
 static void action_close_tab(GSimpleAction *action, GVariant *parameter, gpointer user_data)
 {
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
     AdwTabPage *page = adw_tab_view_get_selected_page(self->tab_view);
     if (page != NULL) adw_tab_view_close_page(self->tab_view, page);
 }
-
-/* -------------------------------------------------------------------------- */
-/* Buffer operations and compile */
 
 static void action_undo(GSimpleAction *a, GVariant *p, gpointer ud)
 {
@@ -669,9 +608,6 @@ static void action_align_right(GSimpleAction *a, GVariant *p, gpointer ud)
     SilktexEditor *e = silktex_window_get_active_editor(SILKTEX_WINDOW(ud));
     if (e) silktex_editor_apply_textstyle(e, "right");
 }
-
-/* -------------------------------------------------------------------------- */
-/* LaTeX insertion — delegates to latex.c */
 
 static void action_insert_section(GSimpleAction *a, GVariant *p, gpointer ud)
 {
@@ -753,9 +689,6 @@ static void action_insert_biblio(GSimpleAction *a, GVariant *p, gpointer ud)
     if (e) silktex_latex_insert_biblio_dialog(GTK_WINDOW(self), e);
 }
 
-/* -------------------------------------------------------------------------- */
-/* PDF preview — zoom, page flip, continuous vs single-page layout */
-
 static void action_zoom_in(GSimpleAction *a, GVariant *p, gpointer ud)
 {
     silktex_preview_zoom_in(SILKTEX_WINDOW(ud)->preview);
@@ -769,10 +702,10 @@ static void action_zoom_fit(GSimpleAction *a, GVariant *p, gpointer ud)
     SilktexWindow *self = SILKTEX_WINDOW(ud);
     SilktexPreview *preview = self->preview;
     silktex_preview_toggle_zoom_fit_width(preview);
-    
+
     gboolean active = (silktex_preview_get_zoom_mode(preview) == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH);
     g_simple_action_set_state(a, g_variant_new_boolean(active));
-    
+
     GAction *fit_page_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit-page");
     if (fit_page_action) {
         g_simple_action_set_state(G_SIMPLE_ACTION(fit_page_action), g_variant_new_boolean(FALSE));
@@ -786,7 +719,7 @@ static void action_zoom_fit_page(GSimpleAction *a, GVariant *p, gpointer ud)
 
     gboolean active = (silktex_preview_get_zoom_mode(preview) == SILKTEX_PREVIEW_ZOOM_FIT_PAGE);
     g_simple_action_set_state(a, g_variant_new_boolean(active));
-    
+
     GAction *fit_width_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit");
     if (fit_width_action) {
         g_simple_action_set_state(G_SIMPLE_ACTION(fit_width_action), g_variant_new_boolean(FALSE));
@@ -815,9 +748,6 @@ static void change_preview_layout(GSimpleAction *action, GVariant *value, gpoint
     g_simple_action_set_state(action, value);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Search / replace overlay and SyncTeX forward jump */
-
 static void action_find(GSimpleAction *a, GVariant *p, gpointer ud)
 {
     SilktexWindow *self = SILKTEX_WINDOW(ud);
@@ -843,7 +773,8 @@ static void action_forward_sync(GSimpleAction *a, GVariant *p, gpointer ud)
         if (g_find_program_in_path("synctex") == NULL) {
             silktex_window_show_toast(self, _("SyncTeX: 'synctex' command not found in PATH"));
         } else if (!config_get_boolean("Compile", "synctex")) {
-            silktex_window_show_toast(self, _("SyncTeX: enable in Preferences -> Compile, then recompile"));
+            silktex_window_show_toast(
+                self, _("SyncTeX: enable in Preferences -> Compile, then recompile"));
         } else {
             silktex_window_show_toast(self, _("SyncTeX: no mapping yet, recompile document"));
         }
@@ -863,15 +794,13 @@ static void on_preview_inverse_sync_requested(SilktexPreview *preview, int page,
         if (g_find_program_in_path("synctex") == NULL) {
             silktex_window_show_toast(self, _("SyncTeX: 'synctex' command not found in PATH"));
         } else if (!config_get_boolean("Compile", "synctex")) {
-            silktex_window_show_toast(self, _("SyncTeX: enable in Preferences -> Compile, then recompile"));
+            silktex_window_show_toast(
+                self, _("SyncTeX: enable in Preferences -> Compile, then recompile"));
         } else {
             silktex_window_show_toast(self, _("SyncTeX inverse: no mapping at clicked position"));
         }
     }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Chrome toggles, preferences, fullscreen, outline refresh */
 
 static void action_toggle_preview(GSimpleAction *a, GVariant *p, gpointer ud)
 {
@@ -890,8 +819,7 @@ static void action_toggle_sidebar(GSimpleAction *a, GVariant *p, gpointer ud)
 static void action_preferences(GSimpleAction *a, GVariant *p, gpointer ud)
 {
     SilktexWindow *self = SILKTEX_WINDOW(ud);
-    /* AdwDialog releases its floating ref when closed, so build a fresh
-     * preferences dialog every time. */
+    /* AdwDialog releases its floating ref on close — build fresh each time. */
     SilktexPrefs *prefs = silktex_prefs_new();
     silktex_prefs_set_apply_callback(prefs, silktex_window_on_prefs_apply, self);
     silktex_prefs_set_snippets(prefs, self->snippets);
@@ -918,8 +846,7 @@ static void action_toggle_log(GSimpleAction *a, GVariant *p, gpointer ud)
     gtk_widget_set_visible(self->log_scroll, !vis);
 }
 
-static void on_log_scroll_visible_changed(GtkWidget *widget, GParamSpec *pspec,
-                                           gpointer user_data)
+static void on_log_scroll_visible_changed(GtkWidget *widget, GParamSpec *pspec, gpointer user_data)
 {
     (void)pspec;
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
@@ -928,11 +855,6 @@ static void on_log_scroll_visible_changed(GtkWidget *widget, GParamSpec *pspec,
     } else {
         silktex_window_focus_active_editor(self);
     }
-}
-
-static int current_editor_min_width(SilktexWindow *self)
-{
-    return SILKTEX_EDITOR_MIN_WIDTH;
 }
 
 static void update_editor_min_width_constraints(SilktexWindow *self)
@@ -945,7 +867,7 @@ static void update_editor_min_width_constraints(SilktexWindow *self)
     int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
     if (w < 1) return;
 
-    int min_width = current_editor_min_width(self);
+    int min_width = SILKTEX_EDITOR_MIN_WIDTH;
 
     int max_start = w - SILKTEX_PREVIEW_PANE_MIN_WIDTH;
     if (max_start < min_width) max_start = min_width;
@@ -977,9 +899,6 @@ static void action_refresh_structure(GSimpleAction *a, GVariant *p, gpointer ud)
     if (self->structure) silktex_structure_refresh(self->structure);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Auxiliary build steps and housekeeping */
-
 static void action_run_bibtex(GSimpleAction *a, GVariant *p, gpointer ud)
 {
     SilktexWindow *self = SILKTEX_WINDOW(ud);
@@ -1008,7 +927,6 @@ static void action_cleanup(GSimpleAction *a, GVariant *p, gpointer ud)
                           "ilg", "ind", "lof", "lot", "synctex.gz", NULL};
     int removed = 0;
 
-    /* Clean the cache-dir job files (new layout). */
     const char *work = silktex_editor_get_workfile(e);
     if (work) {
         g_autofree char *cache_dir = g_path_get_dirname(work);
@@ -1021,7 +939,6 @@ static void action_cleanup(GSimpleAction *a, GVariant *p, gpointer ud)
         }
     }
 
-    /* Also clean files created by manual TeX runs next to the source. */
     const char *fname = silktex_editor_get_filename(e);
     if (fname && *fname) {
         g_autofree char *src_dir = g_path_get_dirname(fname);
@@ -1087,9 +1004,6 @@ static void action_open_pdf_external(GSimpleAction *a, GVariant *p, gpointer ud)
     if (uri) g_app_info_launch_default_for_uri(uri, NULL, NULL);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Called when the preferences dialog applies — all tabs + running compiler */
-
 void silktex_window_on_prefs_apply(gpointer user_data)
 {
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
@@ -1107,25 +1021,16 @@ void silktex_window_on_prefs_apply(gpointer user_data)
     silktex_compiler_apply_config(self->compiler);
     silktex_window_restart_autosave_timer(self);
 
-    /* Snippet shortcuts may have changed; push the new modifier pair
-     * through to the running engine so shortcuts update immediately. */
     if (self->snippets) {
         silktex_snippets_set_modifiers(self->snippets, config_get_string("Snippets", "modifier1"),
                                        config_get_string("Snippets", "modifier2"));
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/*
- * Editor | preview split (GtkPaned). We clamp the handle so neither pane
- * drops below SILKTEX_*_MIN_WIDTH. Narrow window: auto-hide preview and
- * restore when widening (preview_narrow / preview_auto_collapsed).
- */
-
 static int clamp_editor_pane_start(SilktexWindow *self, int w, int pos)
 {
     if (w < 1) return pos;
-    int min_width = current_editor_min_width(self);
+    int min_width = SILKTEX_EDITOR_MIN_WIDTH;
     int max_start = w - SILKTEX_PREVIEW_PANE_MIN_WIDTH;
     if (max_start < min_width) max_start = min_width;
     if (pos < min_width) return min_width;
@@ -1140,7 +1045,7 @@ void silktex_window_apply_editor_paned_half_split(SilktexWindow *self)
     int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
     if (w < 1) return;
 
-    int min_width = current_editor_min_width(self);
+    int min_width = SILKTEX_EDITOR_MIN_WIDTH;
     int half = w / 2;
     int max_start = w - SILKTEX_PREVIEW_PANE_MIN_WIDTH;
     if (max_start < min_width) max_start = min_width;
@@ -1157,7 +1062,6 @@ void silktex_window_apply_editor_paned_half_split(SilktexWindow *self)
     self->preview_split_seeded = TRUE;
 }
 
-/* Re-apply 50% or the last stored split; call only when the preview pane is visible. */
 static void apply_editor_pane_restore(SilktexWindow *self)
 {
     if (self->editor_paned == NULL || self->preview_toolbar_view == NULL) return;
@@ -1206,10 +1110,7 @@ static void on_preview_toggled(GtkToggleButton *button, gpointer user_data)
             self->preview_pane_pos = gtk_paned_get_position(self->editor_paned);
             self->preview_pane_ratio = (double)self->preview_pane_pos / (double)w;
             self->preview_pane_restorable = TRUE;
-
-            /* When preview is hidden, let the editor fill the full width instead
-             * of keeping the last split position (which leaves it "collapsed" on
-             * the left). */
+            /* Expand editor to full width; pane position is saved above for restore. */
             self->preview_pane_silence = TRUE;
             gtk_paned_set_position(self->editor_paned, w);
             self->preview_pane_silence = FALSE;
@@ -1236,7 +1137,6 @@ static void on_window_width_changed(GObject *object, GParamSpec *pspec, gpointer
     (void)pspec;
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
 
-    /* Threshold chosen so side-by-side editor + PDF stays usable on laptops. */
     int width = gtk_widget_get_width(GTK_WIDGET(self));
     gboolean narrow = width > 0 && width < 1024;
     if (narrow == self->preview_narrow) return;
@@ -1246,7 +1146,6 @@ static void on_window_width_changed(GObject *object, GParamSpec *pspec, gpointer
     if (narrow && gtk_toggle_button_get_active(self->btn_preview) && self->editor_paned) {
         int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
         if (w > 0) {
-            /* Keep editor anchored; collapse preview inward on narrow windows. */
             int collapsed_pos = clamp_editor_pane_start(self, w, self->preview_pane_pos);
             self->preview_pane_silence = TRUE;
             gtk_paned_set_position(self->editor_paned, collapsed_pos);
@@ -1298,11 +1197,6 @@ static void on_tab_changed(AdwTabView *view, GParamSpec *pspec, gpointer user_da
     }
     silktex_window_git_refresh_state(self);
 }
-
-/*
- * AdwTabView "close-page" is async when we show a save confirmation — we
- * must call adw_tab_view_close_page_finish with accept/reject.
- */
 
 typedef struct {
     AdwTabView *view;
@@ -1361,12 +1255,6 @@ static gboolean on_close_page(AdwTabView *view, AdwTabPage *page, gpointer user_
     return GDK_EVENT_STOP;
 }
 
-/*
- * Core win.* actions. Theme, recent, shortcuts, open-menu, and git-* are
- * registered separately in window-primary-menu.c and window-git.c so this
- * table stays maintainable.
- */
-
 static const GActionEntry win_actions[] = {
     {"new", action_new},
     {"open", action_open},
@@ -1421,11 +1309,7 @@ static const GActionEntry win_actions[] = {
     {"open-pdf-external", action_open_pdf_external},
 };
 
-/*
- * Snippet expansion — capture phase so we see keys before the source view
- * consumes them (controller attached to the toplevel window).
- */
-
+/* Key controller runs in capture phase so snippets see keys before GtkSourceView. */
 static gboolean on_window_key_pressed(GtkEventControllerKey *ctrl, guint keyval, guint keycode,
                                       GdkModifierType state, gpointer user_data)
 {
@@ -1516,11 +1400,6 @@ static void silktex_window_class_init(SilktexWindowClass *klass)
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_save);
 }
 
-/*
- * Application-wide tweaks: thin paned separator, sidebar depth, flat bottom
- * toolbars, compile log revealer without extra borders. Loaded once per process.
- */
-
 void silktex_window_install_chrome_css(void)
 {
     static gboolean installed = FALSE;
@@ -1587,19 +1466,12 @@ void silktex_window_install_chrome_css(void)
     g_object_unref(provider);
 }
 
-/*
- * Init order matters: template children first, then actions (menu + git add
- * more entries), then theme state, then compiler/preview/search, then signals.
- */
-
 static void silktex_window_init(SilktexWindow *self)
 {
     g_type_ensure(SILKTEX_TYPE_PREVIEW);
     silktex_window_install_chrome_css();
     gtk_widget_init_template(GTK_WIDGET(self));
 
-    /* Flat top bars: avoid an extra "step" and shadow between title bar,
-     * tab strip, and the split — reads as one continuous header band. */
     if (self->root_toolbar_view) {
         adw_toolbar_view_set_top_bar_style(self->root_toolbar_view, ADW_TOOLBAR_FLAT);
     }
@@ -1609,8 +1481,6 @@ static void silktex_window_init(SilktexWindow *self)
     if (self->preview_toolbar_view) {
         adw_toolbar_view_set_top_bar_style(self->preview_toolbar_view, ADW_TOOLBAR_FLAT);
     }
-    /* Flat bottom bars: same hairline weight as the paned separator (raised
-     * toolbars use a heavier top edge that looked bigger than the split). */
     if (self->editor_toolbar_view) {
         adw_toolbar_view_set_bottom_bar_style(self->editor_toolbar_view, ADW_TOOLBAR_FLAT);
     }
@@ -1624,7 +1494,6 @@ static void silktex_window_init(SilktexWindow *self)
     silktex_window_git_register_actions(self);
     silktex_window_git_update_actions(self);
 
-    /* Reflect the persisted theme choice in the "Theme" radio state. */
     GAction *theme_action = g_action_map_lookup_action(G_ACTION_MAP(self), "set-theme");
     if (theme_action) {
         const char *saved = config_get_string("Interface", "theme");
@@ -1638,12 +1507,9 @@ static void silktex_window_init(SilktexWindow *self)
     {
         GtkIconTheme *it = gtk_icon_theme_get_for_display(gdk_display_get_default());
         gtk_icon_theme_add_resource_path(it, "/app/silktex/icons");
-        /* VCS / branch icons only — do not use folder-symbolic here: on some themes
-         * the Git names are missing from has_icon() but folder-symbolic matches last,
-         * so the menu looked like a folder despite main.blp using git-symbolic. */
-        const char *const git_icons[] = {
-            "git-symbolic", "vcs-git-symbolic", "branch-arrow-symbolic", "version-control-symbolic", NULL
-        };
+        /* folder-symbolic matches as fallback on some themes, producing wrong icon. */
+        const char *const git_icons[] = {"git-symbolic", "vcs-git-symbolic",
+                                         "branch-arrow-symbolic", "version-control-symbolic", NULL};
 
         const char *git_icon = "git-symbolic";
         for (int i = 0; git_icons[i]; i++) {
@@ -1656,7 +1522,6 @@ static void silktex_window_init(SilktexWindow *self)
         if (self->btn_git_menu) gtk_menu_button_set_icon_name(self->btn_git_menu, git_icon);
     }
 
-    /* ---- compiler ---- */
     self->compiler = silktex_compiler_new();
     silktex_compiler_apply_config(self->compiler);
     silktex_compiler_start(self->compiler);
@@ -1664,7 +1529,6 @@ static void silktex_window_init(SilktexWindow *self)
     g_signal_connect(self->compiler, "compile-finished", G_CALLBACK(on_compile_finished), self);
     g_signal_connect(self->compiler, "compile-error", G_CALLBACK(on_compile_error), self);
 
-    /* ---- preview ---- */
     self->preview = silktex_preview_new();
     gtk_widget_set_hexpand(GTK_WIDGET(self->preview), TRUE);
     gtk_widget_set_vexpand(GTK_WIDGET(self->preview), TRUE);
@@ -1679,22 +1543,16 @@ static void silktex_window_init(SilktexWindow *self)
     g_signal_connect(self->preview, "inverse-sync-requested",
                      G_CALLBACK(on_preview_inverse_sync_requested), self);
 
-    /* ---- structure sidebar ---- */
     self->structure = silktex_structure_new();
     gtk_widget_set_vexpand(GTK_WIDGET(self->structure), TRUE);
     gtk_box_append(self->structure_container, GTK_WIDGET(self->structure));
 
-    /* ---- search bar ----
-     *
-     * Attach the search overlay as a *top* bar of the editor's ToolbarView
-     * so it sits directly under the window tab strip when opened and does not
-     * interfere with the bottom toolbar or the compile-log revealer. */
+    /* Searchbar as top bar keeps it under the tab strip, away from the log revealer. */
     self->searchbar = silktex_searchbar_new();
     if (self->editor_toolbar_view) {
         adw_toolbar_view_add_top_bar(self->editor_toolbar_view, GTK_WIDGET(self->searchbar));
     }
 
-    /* ---- snippets ---- */
     self->snippets = silktex_snippets_new();
     silktex_snippets_set_modifiers(self->snippets, config_get_string("Snippets", "modifier1"),
                                    config_get_string("Snippets", "modifier2"));
@@ -1715,10 +1573,6 @@ static void silktex_window_init(SilktexWindow *self)
     self->auto_compile = config_get_boolean("Compile", "auto_compile");
     silktex_window_restart_autosave_timer(self);
 
-    /* ---- compile log panel ----
-     *
-     * Scrolled window sits as the end child of log_paned.
-     * Open/close via Document → Compile log (win.toggle-log). */
     {
         self->log_buf = gtk_text_buffer_new(NULL);
         GtkWidget *log_tv = gtk_text_view_new_with_buffer(self->log_buf);
@@ -1735,17 +1589,16 @@ static void silktex_window_init(SilktexWindow *self)
         gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(log_scroll), log_tv);
         gtk_widget_set_visible(log_scroll, FALSE);
         self->log_scroll = log_scroll;
-        
-        g_signal_connect(log_scroll, "notify::visible",
-                         G_CALLBACK(on_log_scroll_visible_changed), self);
+
+        g_signal_connect(log_scroll, "notify::visible", G_CALLBACK(on_log_scroll_visible_changed),
+                         self);
 
         if (self->log_paned) {
             gtk_paned_set_end_child(self->log_paned, log_scroll);
         }
-        
+
         if (self->btn_log) {
-            g_object_bind_property(self->btn_log, "active",
-                                   log_scroll, "visible",
+            g_object_bind_property(self->btn_log, "active", log_scroll, "visible",
                                    G_BINDING_BIDIRECTIONAL | G_BINDING_SYNC_CREATE);
         }
     }
@@ -1756,11 +1609,9 @@ static void silktex_window_init(SilktexWindow *self)
         on_tools_split_toggle_active(self->btn_tools_toggle, NULL, self);
     }
 
-    /* ---- initial tab ---- */
     silktex_window_new_tab(self);
     silktex_window_git_refresh_state(self);
 
-    /* ---- accelerators ---- */
     const char *accels[][2] = {
         {"win.new", "<Control>n"},
         {"win.open", "<Control>o"},
@@ -1797,9 +1648,6 @@ static void silktex_window_init(SilktexWindow *self)
 
     silktex_window_update_page_label(self);
 }
-
-/* -------------------------------------------------------------------------- */
-/* Public API (window.h) */
 
 SilktexWindow *silktex_window_new(AdwApplication *app)
 {

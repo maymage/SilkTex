@@ -2,28 +2,11 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Primary ("hamburger") menu popover: theme swatches, file shortcuts, Git
- * entries, preferences, shortcuts window, about, quit. Also registers the
- * related GActions (set-theme, show-recent, shortcuts, open-menu).
- *
- * Theme model:
- *   - Adwaita color scheme (light / dark) comes from AdwStyleManager and is
- *     driven by config "Interface"/"theme" (follow | light | dark).
- *   - Editor GtkSourceView scheme is separate — silktex_window_apply_theme_to_*
- *     in window.c resolves Gruvbox / lights-out / user preference.
- *
- * Popover buttons activate named actions (e.g. win.new) via a one-idle-tick
- * deferral so the popover can close before the action runs (avoids nesting
- * and focus glitches).
  */
 
 #include "window-private.h"
 #include "configfile.h"
 #include "i18n.h"
-
-/* -------------------------------------------------------------------------- */
-/* AdwStyleManager — shell chrome only */
 
 void silktex_window_apply_theme_from_config(void)
 {
@@ -47,8 +30,6 @@ static void update_theme_buttons(SilktexWindow *self, const char *mode)
     if (self->theme_dark)
         gtk_toggle_button_set_active(self->theme_dark, g_strcmp0(mode, "dark") == 0);
 }
-
-/* Stateful action — default state "'follow'" is set from config in window init. */
 
 static void change_theme(GSimpleAction *action, GVariant *value, gpointer ud)
 {
@@ -82,9 +63,6 @@ void silktex_window_connect_theme_follow(SilktexWindow *self)
     g_signal_connect_object(adw_style_manager_get_default(), "notify::dark",
                             G_CALLBACK(on_system_dark_changed), self, G_CONNECT_DEFAULT);
 }
-
-/* -------------------------------------------------------------------------- */
-/* Recent files dialog — GtkRecentManager, LaTeX-like MIME and extensions only */
 
 typedef struct {
     SilktexWindow *self;
@@ -200,12 +178,7 @@ static void action_show_recent(GSimpleAction *a, GVariant *p, gpointer ud)
     adw_dialog_present(dlg, GTK_WIDGET(self));
 }
 
-/*
- * GtkShortcutsWindow is deprecated in GTK 4.18+ with no in-tree replacement;
- * we keep it for now for a native GNOME-style overlay. Build with
- * G_GNUC_BEGIN_IGNORE_DEPRECATIONS around the block.
- */
-
+/* GtkShortcutsWindow is deprecated in GTK 4.18 but has no in-tree replacement yet. */
 static GtkWidget *make_shortcut(const char *accel, const char *title)
 {
     return g_object_new(GTK_TYPE_SHORTCUTS_SHORTCUT, "accelerator", accel, "title", title, NULL);
@@ -226,16 +199,19 @@ static void action_shortcuts(GSimpleAction *a, GVariant *p, gpointer ud)
     GtkWidget *win = g_object_new(GTK_TYPE_SHORTCUTS_WINDOW, "modal", TRUE, "transient-for", self,
                                   "destroy-with-parent", TRUE, NULL);
 
-    GtkWidget *section = g_object_new(GTK_TYPE_SHORTCUTS_SECTION, "section-name", "main",
-                                      "visible", TRUE, NULL);
+    GtkWidget *section =
+        g_object_new(GTK_TYPE_SHORTCUTS_SECTION, "section-name", "main", "visible", TRUE, NULL);
 
     GtkWidget *g_files = make_group(_("Files"));
-    gtk_shortcuts_group_add_shortcut(GTK_SHORTCUTS_GROUP(g_files),
-                                     GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>n", _("New tab"))));
-    gtk_shortcuts_group_add_shortcut(GTK_SHORTCUTS_GROUP(g_files),
-                                     GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>o", _("Open"))));
-    gtk_shortcuts_group_add_shortcut(GTK_SHORTCUTS_GROUP(g_files),
-                                     GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>s", _("Save"))));
+    gtk_shortcuts_group_add_shortcut(
+        GTK_SHORTCUTS_GROUP(g_files),
+        GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>n", _("New tab"))));
+    gtk_shortcuts_group_add_shortcut(
+        GTK_SHORTCUTS_GROUP(g_files),
+        GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>o", _("Open"))));
+    gtk_shortcuts_group_add_shortcut(
+        GTK_SHORTCUTS_GROUP(g_files),
+        GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>s", _("Save"))));
     gtk_shortcuts_group_add_shortcut(
         GTK_SHORTCUTS_GROUP(g_files),
         GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary><Shift>s", _("Save As"))));
@@ -245,8 +221,9 @@ static void action_shortcuts(GSimpleAction *a, GVariant *p, gpointer ud)
     gtk_shortcuts_section_add_group(GTK_SHORTCUTS_SECTION(section), GTK_SHORTCUTS_GROUP(g_files));
 
     GtkWidget *g_edit = make_group(_("Editing"));
-    gtk_shortcuts_group_add_shortcut(GTK_SHORTCUTS_GROUP(g_edit),
-                                     GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>z", _("Undo"))));
+    gtk_shortcuts_group_add_shortcut(
+        GTK_SHORTCUTS_GROUP(g_edit),
+        GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>z", _("Undo"))));
     gtk_shortcuts_group_add_shortcut(
         GTK_SHORTCUTS_GROUP(g_edit),
         GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary><Shift>z", _("Redo"))));
@@ -292,12 +269,10 @@ static void action_shortcuts(GSimpleAction *a, GVariant *p, gpointer ud)
     gtk_shortcuts_group_add_shortcut(
         GTK_SHORTCUTS_GROUP(g_view),
         GTK_SHORTCUTS_SHORTCUT(make_shortcut("F9", _("Toggle preview"))));
-    gtk_shortcuts_group_add_shortcut(
-        GTK_SHORTCUTS_GROUP(g_view),
-        GTK_SHORTCUTS_SHORTCUT(make_shortcut("F10", _("Main menu"))));
-    gtk_shortcuts_group_add_shortcut(
-        GTK_SHORTCUTS_GROUP(g_view),
-        GTK_SHORTCUTS_SHORTCUT(make_shortcut("F11", _("Fullscreen"))));
+    gtk_shortcuts_group_add_shortcut(GTK_SHORTCUTS_GROUP(g_view),
+                                     GTK_SHORTCUTS_SHORTCUT(make_shortcut("F10", _("Main menu"))));
+    gtk_shortcuts_group_add_shortcut(GTK_SHORTCUTS_GROUP(g_view),
+                                     GTK_SHORTCUTS_SHORTCUT(make_shortcut("F11", _("Fullscreen"))));
     gtk_shortcuts_group_add_shortcut(
         GTK_SHORTCUTS_GROUP(g_view),
         GTK_SHORTCUTS_SHORTCUT(make_shortcut("<Primary>question", _("Keyboard shortcuts"))));
@@ -311,11 +286,7 @@ static void action_shortcuts(GSimpleAction *a, GVariant *p, gpointer ud)
     G_GNUC_END_IGNORE_DEPRECATIONS
 }
 
-/*
- * Popover menu actions must not run while the popover is tearing down — we
- * pop down first, then gtk_widget_activate_action on the next main-loop idle.
- */
-
+/* Pop down first, then fire the action on an idle to avoid tearing-down state. */
 typedef struct {
     SilktexWindow *self;
     char *action;
@@ -364,8 +335,9 @@ static void silktex_image_set_icon_list(GtkImage *image, const char *const *cand
     gtk_image_set_from_icon_name(image, candidates[0]);
 }
 
-static GtkWidget *make_primary_popover_with_icons(const char *label, const char *const *icon_candidates,
-                                                    const char *action, SilktexWindow *self)
+static GtkWidget *make_primary_popover_with_icons(const char *label,
+                                                  const char *const *icon_candidates,
+                                                  const char *action, SilktexWindow *self)
 {
     GtkWidget *button = gtk_button_new();
     gtk_widget_add_css_class(button, "flat");
@@ -406,20 +378,18 @@ static void install_theme_swatch_css(void)
     installed = TRUE;
 
     GtkCssProvider *provider = gtk_css_provider_new();
-    gtk_css_provider_load_from_string(
-        provider,
-        "button.theme-swatch-button,"
-        "button.theme-swatch-button:hover,"
-        "button.theme-swatch-button:checked,"
-        "button.theme-swatch-button:checked:hover {"
-        "  padding: 0;"
-        "  min-width: 0;"
-        "  min-height: 0;"
-        "  background: transparent;"
-        "  border-color: transparent;"
-        "  box-shadow: none;"
-        "  outline-color: transparent;"
-        "}");
+    gtk_css_provider_load_from_string(provider, "button.theme-swatch-button,"
+                                                "button.theme-swatch-button:hover,"
+                                                "button.theme-swatch-button:checked,"
+                                                "button.theme-swatch-button:checked:hover {"
+                                                "  padding: 0;"
+                                                "  min-width: 0;"
+                                                "  min-height: 0;"
+                                                "  background: transparent;"
+                                                "  border-color: transparent;"
+                                                "  box-shadow: none;"
+                                                "  outline-color: transparent;"
+                                                "}");
     gtk_style_context_add_provider_for_display(gdk_display_get_default(),
                                                GTK_STYLE_PROVIDER(provider),
                                                GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -433,7 +403,8 @@ static void on_theme_selector_clicked(GtkToggleButton *button, gpointer user_dat
 
     const char *mode = g_object_get_data(G_OBJECT(button), "silktex-theme");
     if (mode != NULL) {
-        g_action_group_activate_action(G_ACTION_GROUP(self), "set-theme", g_variant_new_string(mode));
+        g_action_group_activate_action(G_ACTION_GROUP(self), "set-theme",
+                                       g_variant_new_string(mode));
     }
 }
 
@@ -583,11 +554,10 @@ void silktex_window_install_primary_menu(SilktexWindow *self)
     gtk_box_append(GTK_BOX(box), theme);
     gtk_box_append(GTK_BOX(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
 
-    gtk_box_append(GTK_BOX(box),
-                   make_primary_popover_button(_("_New"), "document-new-symbolic", "win.new", self));
-    gtk_box_append(GTK_BOX(box), make_primary_popover_button(_("_Open…"),
-                                                             "document-open-symbolic", "win.open",
-                                                             self));
+    gtk_box_append(GTK_BOX(box), make_primary_popover_button(_("_New"), "document-new-symbolic",
+                                                             "win.new", self));
+    gtk_box_append(GTK_BOX(box), make_primary_popover_button(_("_Open…"), "document-open-symbolic",
+                                                             "win.open", self));
     gtk_box_append(GTK_BOX(box),
                    make_primary_popover_button(_("Open _Recent…"), "document-open-recent-symbolic",
                                                "win.show-recent", self));
@@ -598,12 +568,11 @@ void silktex_window_install_primary_menu(SilktexWindow *self)
     gtk_box_append(GTK_BOX(box),
                    make_primary_popover_button(_("_Preferences"), "emblem-system-symbolic",
                                                "win.preferences", self));
-    gtk_box_append(GTK_BOX(box),
-                   make_primary_popover_button(_("_Shortcuts"), "preferences-desktop-keyboard-symbolic",
-                                               "win.shortcuts", self));
-    gtk_box_append(GTK_BOX(box),
-                   make_primary_popover_button(_("_Info"), "help-about-symbolic",
-                                               "app.about", self));
+    gtk_box_append(GTK_BOX(box), make_primary_popover_button(
+                                     _("_Shortcuts"), "preferences-desktop-keyboard-symbolic",
+                                     "win.shortcuts", self));
+    gtk_box_append(GTK_BOX(box), make_primary_popover_button(_("_Info"), "help-about-symbolic",
+                                                             "app.about", self));
 
     gtk_menu_button_set_menu_model(self->btn_menu, NULL);
     gtk_menu_button_set_popover(self->btn_menu, popover);

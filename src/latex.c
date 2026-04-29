@@ -2,16 +2,10 @@
  * SilkTex - LaTeX insertion helpers
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Pure generators (tables, matrices, graphics) plus Adwaita dialogs that
- * collect parameters and insert at the cursor via silktex_editor_* APIs.
- * Kept separate from editor.c to limit recompiles when dialog UI changes.
  */
 #include "latex.h"
 #include "i18n.h"
 #include <string.h>
-
-/* ------------------------------------------------------------------ table */
 
 static const char align_chars[][2] = {"l", "c", "r"};
 static const char bracket_names[][16] = {"matrix",  "pmatrix", "bmatrix",
@@ -86,8 +80,6 @@ char *silktex_latex_generate_image(const char *path, const char *caption, const 
                            scale_str, path ? path : "", caption ? caption : "", label ? label : "");
 }
 
-/* ------------------------------------------------------------------ insert */
-
 void silktex_latex_insert_at_cursor(SilktexEditor *editor, const char *before, const char *after)
 {
     g_return_if_fail(SILKTEX_IS_EDITOR(editor));
@@ -111,7 +103,6 @@ void silktex_latex_insert_at_cursor(SilktexEditor *editor, const char *before, c
         gtk_text_buffer_get_iter_at_mark(buf, &insert, mark);
         gtk_text_buffer_insert(buf, &insert, before, -1);
         if (after) {
-            /* Remember position between before/after */
             GtkTextMark *between = gtk_text_buffer_create_mark(buf, NULL, &insert, TRUE);
             gtk_text_buffer_insert(buf, &insert, after, -1);
             GtkTextIter mid;
@@ -138,8 +129,6 @@ void silktex_latex_insert_environment(SilktexEditor *editor, const char *env)
     g_autofree char *after = g_strdup_printf("\n\\end{%s}\n", env);
     silktex_latex_insert_at_cursor(editor, before, after);
 }
-
-/* ============================================================== dialogs === */
 
 typedef struct {
     SilktexEditor *editor;
@@ -266,8 +255,6 @@ void silktex_latex_insert_image_dialog(GtkWindow *parent, SilktexEditor *editor)
     adw_dialog_present(ADW_DIALOG(dlg), GTK_WIDGET(parent));
 }
 
-/* --------------------------------------------------------------- table */
-
 typedef struct {
     SilktexEditor *editor;
     AdwSpinRow *rows;
@@ -336,8 +323,6 @@ void silktex_latex_insert_table_dialog(GtkWindow *parent, SilktexEditor *editor)
     adw_dialog_present(ADW_DIALOG(dlg), GTK_WIDGET(parent));
 }
 
-/* -------------------------------------------------------------- matrix */
-
 typedef struct {
     SilktexEditor *editor;
     AdwSpinRow *rows;
@@ -399,8 +384,6 @@ void silktex_latex_insert_matrix_dialog(GtkWindow *parent, SilktexEditor *editor
     adw_dialog_present(ADW_DIALOG(dlg), GTK_WIDGET(parent));
 }
 
-/* ------------------------------------------------------------- biblio */
-
 typedef struct {
     SilktexEditor *editor;
     AdwEntryRow *file_row;
@@ -443,7 +426,6 @@ static void on_bib_response(AdwAlertDialog *dlg, const char *resp, gpointer ud)
         const char *file = gtk_editable_get_text(GTK_EDITABLE(ctx->file_row));
         if (file && *file) {
             g_autofree char *rel = relativize(file, ctx->editor);
-            /* strip .bib extension if present */
             char *base = g_strdup(rel);
             char *dot = g_strrstr(base, ".bib");
             if (dot) *dot = '\0';

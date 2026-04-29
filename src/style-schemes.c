@@ -2,9 +2,6 @@
  * SilkTex — bundled GtkSourceView style schemes and resolution.
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Registers bundled GtkSourceView schemes and resolves the automatic editor
- * theme from the current Adwaita color preference.
  */
 
 #include "style-schemes.h"
@@ -21,7 +18,6 @@
 
 static gboolean paths_initialized;
 
-/* Append $sharedata/silktex/styles/ so bundled schemes (Gruvbox, Lights out) are found. */
 void silktex_init_style_scheme_paths(void)
 {
     if (paths_initialized) return;
@@ -46,7 +42,6 @@ void silktex_init_style_scheme_paths(void)
         gtk_source_style_scheme_manager_prepend_search_path(mgr, custom);
 }
 
-/* Map window theme mode → default editor scheme id. */
 static const char *default_scheme_for_ui_mode(void)
 {
     GtkSourceStyleSchemeManager *mgr = gtk_source_style_scheme_manager_get_default();
@@ -70,7 +65,6 @@ static const char *default_scheme_for_ui_mode(void)
     return light;
 }
 
-/* First installed scheme in try_ids, or NULL. */
 static const char *first_existing_scheme(GtkSourceStyleSchemeManager *mgr,
                                          const char *const *try_ids)
 {

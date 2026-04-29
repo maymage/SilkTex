@@ -1,11 +1,7 @@
 /*
- * SilkTex - configfile.c
+ * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * GLib KeyFile persistence for ~/.config/silktex/config.ini (see constants.h).
- * config_init() creates the file from an embedded default if missing;
- * getters/setters are thin wrappers used across the app and prefs dialog.
  */
 
 #include "configfile.h"
@@ -136,9 +132,11 @@ void config_init(void)
         config_save();
     }
 
-    g_autofree char *config_version = g_key_file_get_string(key_file, "General", "config_version", NULL);
+    g_autofree char *config_version =
+        g_key_file_get_string(key_file, "General", "config_version", NULL);
     gboolean legacy_config = g_strcmp0(config_version, C_PACKAGE_VERSION) != 0;
-    gboolean legacy_synctex_default = config_version == NULL || g_str_has_prefix(config_version, "0.");
+    gboolean legacy_synctex_default =
+        config_version == NULL || g_str_has_prefix(config_version, "0.");
 
     /* SyncTeX should be enabled by default. Pre-1.0 configs may already
      * contain synctex=false from the previous default, so migrate those once. */

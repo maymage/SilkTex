@@ -1,23 +1,7 @@
 /*
- * SilkTex - Snippet engine
+ * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * GObject-owned snippet table + expansion state machine. The main window
- * installs key handlers that call silktex_snippets_handle_key/_release.
- *
- * Expansion model:
- *   1. Insert raw snippet body (including "$1", "${2:default}", etc.) at cursor.
- *   2. Create left/right gravity marks around every placeholder.
- *   3. "initial_expand": replace placeholder syntax with default text / macros.
- *      Because marks track buffer edits we can do this in any order.
- *   4. Tab / Shift-Tab cycle through unique groups by number; $0 is the final
- *      landing position; Escape deactivates.
- *
- * Snippet file format:
- *   VS Code-style JSON object in ~/.config/silktex/snippets.json.
- *   Each entry supports "prefix", "body", "description", and SilkTex's
- *   optional "accelerator" field for global-modifier shortcuts.
  */
 
 #include "snippets.h"
@@ -28,8 +12,6 @@
 #include <json-glib/json-glib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-/* ------------------------------------------------------------------ types */
 
 typedef struct {
     guint keyval;
@@ -67,14 +49,6 @@ struct _SilktexSnippets {
 
 G_DEFINE_FINAL_TYPE (SilktexSnippets, silktex_snippets, G_TYPE_OBJECT)
 
-/* ---------------------------------------------------------------- default content
- *
- * We ship a default snippets.json in $datadir/silktex/snippets/snippets.json.
- * On first run (or after reset), we copy that file verbatim to the user's
- * config directory. During development the build system exports SILKTEX_DATA,
- * which points at the in-tree data/ folder.
- */
-
 #ifndef SILKTEX_DATA
 #define SILKTEX_DATA "/usr/share/silktex"
 #endif
@@ -104,8 +78,6 @@ static gboolean copy_default_snippets(const char *dest)
     return g_file_set_contents(dest, contents, (gssize)len, NULL);
 }
 
-/* ------------------------------------------------------------------ file I/O */
-
 static void free_accels(GList *accels)
 {
     for (GList *c = accels; c; c = c->next) {
@@ -127,16 +99,7 @@ static void free_slist(slist *head)
     }
 }
 
-/*
- * Parse the ACCEL field of a snippet header.
- *
- * Two formats are accepted:
- *   1. Full accelerator string: "<Shift><Alt>e" or "<Control>F3".
- *   2. Short form: a single letter such as "e"; the global modifier pair
- *      from preferences is applied.
- *
- * Empty / missing → no shortcut.
- */
+/* Accepts "<Shift><Alt>e" (explicit) or "e" (combined with global_mods). */
 static void parse_and_store_accel(SilktexSnippets *self, const char *header)
 {
     gchar **parts = g_strsplit(header, ",", 3);
@@ -150,20 +113,13 @@ static void parse_and_store_accel(SilktexSnippets *self, const char *header)
     GdkModifierType mods = 0;
 
     if (strchr(accel, '<') != NULL) {
-        /* Explicit-modifier form: "<Shift><Alt>e" */
         gtk_accelerator_parse(accel, &kv, &mods);
     } else {
-        /* Short form: just the letter; combine with global modifiers. */
         kv = gdk_keyval_from_name(accel);
         mods = self->global_mods;
     }
 
-    /*
-     * Safety: never register an accelerator with no modifiers — otherwise
-     * every bare keystroke matching `kv` would trigger the snippet.  If
-     * both modifier slots are empty, the short-form snippet is skipped;
-     * explicit accelerators still work.
-     */
+    /* Never register without modifiers — any bare keystroke would trigger the snippet. */
     if (kv != 0 && kv != GDK_KEY_VoidSymbol && mods != 0) {
         SnippetAccel *a = g_new0(SnippetAccel, 1);
         a->keyval = kv;
@@ -174,10 +130,6 @@ static void parse_and_store_accel(SilktexSnippets *self, const char *header)
     g_strfreev(parts);
 }
 
-/*
- * Walk all stored snippet headers and (re)build self->accels.
- * Called after the file reloads or the global modifiers change.
- */
 static void rebuild_accels(SilktexSnippets *self)
 {
     free_accels(self->accels);
@@ -338,8 +290,6 @@ static const char *snippet_lookup(SilktexSnippets *self, const char *keyword)
     return NULL;
 }
 
-/* ------------------------------------------------------------------ parser */
-
 static gint cmp_by_start(gconstpointer a, gconstpointer b)
 {
     return ((Holder *)a)->start - ((Holder *)b)->start;
@@ -350,7 +300,6 @@ static gint cmp_by_group(gconstpointer a, gconstpointer b)
     return (ga < gb) ? -1 : (ga > gb) ? 1 : 0;
 }
 
-/* byte offset in UTF-8 string → character offset */
 static int boff2coff(const char *s, int boff)
 {
     return (int)g_utf8_strlen(s, boff);
@@ -411,7 +360,6 @@ static SnippetState *parse_snippet(const char *body, const char *sel_text)
 
     s->holders = g_list_sort(holders, cmp_by_start);
 
-    /* Build unique-group list */
     GHashTable *seen = g_hash_table_new(g_direct_hash, g_direct_equal);
     for (GList *c = s->holders; c; c = c->next) {
         Holder *h = c->data;
@@ -425,8 +373,6 @@ static SnippetState *parse_snippet(const char *body, const char *sel_text)
 
     return s;
 }
-
-/* ------------------------------------------------------------------ marks */
 
 static void create_marks(SnippetState *s, GtkTextBuffer *buf)
 {
@@ -466,25 +412,16 @@ static void free_state(SnippetState *s, GtkTextBuffer *buf)
     g_free(s);
 }
 
-/* ------------------------------------------------------------------ expand */
-
-/*
- * Replace each placeholder's text in the buffer with the default / macro value.
- * We process in REVERSE position order so that earlier char offsets remain
- * valid after each deletion+insertion (though marks handle this anyway, this
- * order avoids mark-overlap edge cases).
- */
+/* Process in reverse order to keep earlier offsets valid after each edit. */
 static void initial_expand(SnippetState *s, GtkTextBuffer *buf, const char *filename,
                            const char *basename)
 {
-    /* Build group→representative_deftext map */
     GHashTable *group_text = g_hash_table_new(g_direct_hash, g_direct_equal);
     for (GList *c = s->unique; c; c = c->next) {
         Holder *h = c->data;
         g_hash_table_insert(group_text, GINT_TO_POINTER((int)h->group), h->deftext);
     }
 
-    /* Reverse list of holders so we process last-to-first */
     GList *rev = g_list_reverse(g_list_copy(s->holders));
 
     for (GList *c = rev; c; c = c->next) {
@@ -493,10 +430,7 @@ static void initial_expand(SnippetState *s, GtkTextBuffer *buf, const char *file
         gtk_text_buffer_get_iter_at_mark(buf, &ls, h->lmark);
         gtk_text_buffer_get_iter_at_mark(buf, &le, h->rmark);
 
-        /* Delete the raw placeholder syntax (e.g. "${1:default}" or "$1") */
         gtk_text_buffer_delete(buf, &ls, &le);
-
-        /* Determine replacement */
         const char *repl = NULL;
         if (h->group == -1) {
             if (g_strcmp0(h->deftext, "SELECTED_TEXT") == 0)
@@ -514,8 +448,6 @@ static void initial_expand(SnippetState *s, GtkTextBuffer *buf, const char *file
     g_list_free(rev);
     g_hash_table_destroy(group_text);
 }
-
-/* ------------------------------------------------------------------ focus/nav */
 
 static void focus_holder(Holder *h, GtkTextBuffer *buf, GtkTextView *view)
 {
@@ -540,7 +472,6 @@ static gboolean goto_next(SnippetState *s, GtkTextBuffer *buf, GtkTextView *view
     }
 
     if (!s->current) {
-        /* $0 is the final cursor position after the last editable placeholder. */
         for (GList *c = s->unique; c; c = c->next) {
             if (((Holder *)c->data)->group == 0) {
                 focus_holder(c->data, buf, view);
@@ -567,8 +498,6 @@ static gboolean goto_prev(SnippetState *s, GtkTextBuffer *buf, GtkTextView *view
     return TRUE;
 }
 
-/* ------------------------------------------------------------------ mirror */
-
 static void sync_group(SnippetState *s, GtkTextBuffer *buf)
 {
     if (!s->current) return;
@@ -591,8 +520,6 @@ static void sync_group(SnippetState *s, GtkTextBuffer *buf)
     }
 }
 
-/* ------------------------------------------------------------------ activate */
-
 static void deactivate(SilktexSnippets *self, GtkTextBuffer *buf)
 {
     if (!self->active) return;
@@ -606,11 +533,6 @@ static void deactivate(SilktexSnippets *self, GtkTextBuffer *buf)
     }
 }
 
-/*
- * activate_snippet:
- *   @delete_keyword: TRUE when expanding via Tab (delete typed word first),
- *                    FALSE when expanding via accelerator (insert at cursor).
- */
 static void activate_snippet(SilktexSnippets *self, SilktexEditor *editor, const char *keyword,
                              gboolean delete_keyword)
 {
@@ -621,7 +543,6 @@ static void activate_snippet(SilktexSnippets *self, SilktexEditor *editor, const
     GtkTextBuffer *buf = GTK_TEXT_BUFFER(sbuf);
     GtkTextView *view = GTK_TEXT_VIEW(silktex_editor_get_view(editor));
 
-    /* Capture selection for $SELECTED_TEXT */
     GtkTextIter sel_s, sel_e;
     gtk_text_buffer_get_selection_bounds(buf, &sel_s, &sel_e);
     g_autofree char *sel = gtk_text_iter_get_text(&sel_s, &sel_e);
@@ -633,36 +554,30 @@ static void activate_snippet(SilktexSnippets *self, SilktexEditor *editor, const
     gtk_text_buffer_begin_user_action(buf);
 
     if (delete_keyword) {
-        /* Tab expansion: delete the typed keyword */
         GtkTextIter cur;
         gtk_text_buffer_get_iter_at_mark(buf, &cur, gtk_text_buffer_get_insert(buf));
         GtkTextIter word_start = cur;
         gtk_text_iter_backward_word_start(&word_start);
         gtk_text_buffer_delete(buf, &word_start, &cur);
     } else {
-        /* Accelerator: delete any selection (for $SELECTED_TEXT wrapping) */
         if (*sel) gtk_text_buffer_delete(buf, &sel_s, &sel_e);
     }
 
-    /* Record insertion point */
     GtkTextIter anchor_it;
     gtk_text_buffer_get_iter_at_mark(buf, &anchor_it, gtk_text_buffer_get_insert(buf));
     GtkTextMark *anchor = gtk_text_buffer_create_mark(buf, NULL, &anchor_it, TRUE);
 
-    /* Insert raw body (with $1, ${2:default} etc.) */
     gtk_text_buffer_insert_at_cursor(buf, s->expanded, -1);
 
     gtk_text_buffer_get_iter_at_mark(buf, &anchor_it, anchor);
     s->start_offset = gtk_text_iter_get_offset(&anchor_it);
     gtk_text_buffer_delete_mark(buf, anchor);
 
-    /* Create marks, then replace placeholder syntax with defaults */
     create_marks(s, buf);
     initial_expand(s, buf, filename ? filename : "", basename);
 
     gtk_text_buffer_end_user_action(buf);
 
-    /* Push existing active snippet; make this one active */
     if (self->active) {
         sync_group(self->active, buf);
         self->stack = g_list_append(self->stack, self->active);
@@ -671,8 +586,6 @@ static void activate_snippet(SilktexSnippets *self, SilktexEditor *editor, const
 
     if (!goto_next(s, buf, view)) deactivate(self, buf);
 }
-
-/* ------------------------------------------------------------------ GObject */
 
 static void silktex_snippets_finalize(GObject *obj)
 {
@@ -688,8 +601,6 @@ static void silktex_snippets_class_init(SilktexSnippetsClass *klass)
 }
 static void silktex_snippets_init(SilktexSnippets *self) {}
 
-/* ------------------------------------------------------------------ public */
-
 SilktexSnippets *silktex_snippets_new(void)
 {
     SilktexSnippets *self = g_object_new(SILKTEX_TYPE_SNIPPETS, NULL);
@@ -698,7 +609,6 @@ SilktexSnippets *silktex_snippets_new(void)
     self->filename = g_build_filename(confdir, "snippets.json", NULL);
     g_free(confdir);
 
-    /* Default global modifier pair; users can change it in Preferences. */
     self->global_mods = GDK_SHIFT_MASK | GDK_ALT_MASK;
 
     load_snippets_file(self);
@@ -720,7 +630,6 @@ void silktex_snippets_reload(SilktexSnippets *self)
 void silktex_snippets_reset_to_default(SilktexSnippets *self)
 {
     g_return_if_fail(SILKTEX_IS_SNIPPETS(self));
-    /* Remove the user's copy; load_snippets_file() will re-seed it. */
     g_unlink(self->filename);
     load_snippets_file(self);
 }
@@ -741,13 +650,11 @@ gboolean silktex_snippets_handle_key(SilktexSnippets *self, SilktexEditor *edito
     GtkTextBuffer *buf = GTK_TEXT_BUFFER(sbuf);
     GtkTextView *view = GTK_TEXT_VIEW(silktex_editor_get_view(editor));
 
-    /* Escape: deactivate */
     if (keyval == GDK_KEY_Escape && self->active) {
         deactivate(self, buf);
         return TRUE;
     }
 
-    /* Check accelerator-based snippet triggers first */
     GdkModifierType clean = state & gtk_accelerator_get_default_mod_mask();
     guint lower_kv = gdk_keyval_to_lower(keyval);
     for (GList *c = self->accels; c; c = c->next) {
@@ -758,7 +665,6 @@ gboolean silktex_snippets_handle_key(SilktexSnippets *self, SilktexEditor *edito
         }
     }
 
-    /* On Tab, try keyword expansion before placeholder navigation. */
     if (keyval == GDK_KEY_Tab && !(state & GDK_SHIFT_MASK)) {
         GtkTextIter cur;
         gtk_text_buffer_get_iter_at_mark(buf, &cur, gtk_text_buffer_get_insert(buf));
@@ -777,7 +683,6 @@ gboolean silktex_snippets_handle_key(SilktexSnippets *self, SilktexEditor *edito
         }
     }
 
-    /* Shift-Tab: previous placeholder */
     if ((keyval == GDK_KEY_ISO_Left_Tab || keyval == GDK_KEY_Tab) && (state & GDK_SHIFT_MASK)) {
         if (self->active) {
             if (!goto_prev(self->active, buf, view)) deactivate(self, buf);
@@ -785,9 +690,7 @@ gboolean silktex_snippets_handle_key(SilktexSnippets *self, SilktexEditor *edito
         }
     }
 
-    /* Auto-deactivate if the cursor has wandered outside the snippet body.
-     * Use the last holder mark as the end boundary and start_offset as
-     * the start boundary. */
+    /* Deactivate when cursor leaves the snippet body. */
     if (self->active && self->active->holders) {
         GList *last_node = g_list_last(self->active->holders);
         if (last_node) {
@@ -804,13 +707,7 @@ gboolean silktex_snippets_handle_key(SilktexSnippets *self, SilktexEditor *edito
     return FALSE;
 }
 
-/*
- * silktex_snippets_handle_key_release:
- *
- * Must be called from the window's key-released signal so that group
- * mirroring fires AFTER the typed character has been committed to the
- * buffer (GTK processes input between key-press and key-release).
- */
+/* Must be key-released (not key-pressed) so the char is in the buffer first. */
 gboolean silktex_snippets_handle_key_release(SilktexSnippets *self, SilktexEditor *editor,
                                              guint keyval, GdkModifierType state)
 {

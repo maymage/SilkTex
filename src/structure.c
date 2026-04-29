@@ -2,10 +2,6 @@
  * SilkTex - Document outline sidebar
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Parses the active buffer for LaTeX sectioning commands and shows a GtkListBox
- * outline. Refresh is debounced on editor "changed" to avoid rescans on every
- * keystroke. See structure.h for supported commands and navigation behaviour.
  */
 #include "structure.h"
 #include "i18n.h"
@@ -32,29 +28,26 @@ struct _SilktexStructure {
 
 G_DEFINE_FINAL_TYPE (SilktexStructure, silktex_structure, GTK_TYPE_WIDGET)
 
-static void outline_entry_free(gpointer p)
-{
-    OutlineEntry *e = p;
-    if (!e) return;
-    g_free(e->title);
-    g_free(e);
-}
+    static void outline_entry_free(gpointer p)
+    {
+        OutlineEntry *e = p;
+        if (!e) return;
+        g_free(e->title);
+        g_free(e);
+    }
 
-/* Return structure level 0-5 for a LaTeX sectioning command, or -1. */
 static int match_level(const char *cmd)
 {
     static const char *const names[] = {"part",       "chapter",       "section",
                                         "subsection", "subsubsection", "paragraph"};
     for (int i = 0; i < (int)G_N_ELEMENTS(names); i++) {
         if (g_strcmp0(cmd, names[i]) == 0) return i;
-        /* Accept starred variants too e.g. \section* */
         g_autofree char *starred = g_strdup_printf("%s*", names[i]);
         if (g_strcmp0(cmd, starred) == 0) return i;
     }
     return -1;
 }
 
-/* Parse a single line and, if it is a structural command, append to list. */
 static void parse_line(const char *line, int lineno, GPtrArray *out)
 {
     const char *p = line;
@@ -63,7 +56,6 @@ static void parse_line(const char *line, int lineno, GPtrArray *out)
     if (*p != '\\') return;
     p++; /* skip backslash */
 
-    /* read command name (letters + optional trailing *) */
     const char *start = p;
     while (*p && (g_ascii_isalpha(*p) || *p == '*'))
         p++;
@@ -72,7 +64,6 @@ static void parse_line(const char *line, int lineno, GPtrArray *out)
     int lvl = match_level(cmd);
     if (lvl < 0) return;
 
-    /* Skip optional argument [..] */
     if (*p == '[') {
         int depth = 1;
         p++;
@@ -89,7 +80,6 @@ static void parse_line(const char *line, int lineno, GPtrArray *out)
     if (*p != '{') return;
     p++;
 
-    /* read title until matching closing brace */
     int depth = 1;
     const char *t0 = p;
     while (*p && depth > 0) {
@@ -154,7 +144,6 @@ static void populate(SilktexStructure *self, GPtrArray *entries)
             gtk_widget_add_css_class(lbl, "heading");
             break;
         case 2:
-            /* plain label */
             break;
         default:
             gtk_widget_add_css_class(lbl, "dim-label");

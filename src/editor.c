@@ -2,19 +2,6 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * SilktexEditor — GObject wrapper around GtkSourceView + GtkSourceBuffer.
- *
- * Responsibilities:
- *   - Load/save the on-disk .tex path and a separate cache "workfile" used
- *     for compilation (see constants.h C_TMPDIR; avoids TeX output next
- *     to sources and respects openout_any).
- *   - Text styling (bold/italic/align), search/replace, error highlighting,
- *     and SyncTeX-friendly cursor/line navigation.
- *   - Emits "changed" when the buffer changes; exposes modified state for tabs.
- *
- * The view is owned by this object; the window places it inside a scrolled
- * page and stores a pointer via g_object_get_data(..., "silktex-editor").
  */
 
 #include "editor.h"
@@ -51,7 +38,7 @@ struct _SilktexEditor {
 
 G_DEFINE_FINAL_TYPE (SilktexEditor, silktex_editor, G_TYPE_OBJECT)
 
-enum { PROP_0, PROP_MODIFIED, N_PROPS };
+    enum { PROP_0, PROP_MODIFIED, N_PROPS };
 
 static GParamSpec *properties[N_PROPS];
 
@@ -83,14 +70,8 @@ static void on_buffer_changed(GtkTextBuffer *buffer, gpointer user_data)
 
 static void silktex_editor_init_workfile(SilktexEditor *self)
 {
-    /*
-     * Work/output files live in a throw-away cache directory so we never
-     * litter the user's source folder.  The workfile name is derived from
-     * a random mkstemp token (so simultaneous tabs never collide) and is
-     * intentionally named WITHOUT a leading dot — TeX Live's default
-     * openout_any=p refuses to write files whose name starts with "."
-     * which caused the old ".<base>.aux" pattern to fail outright.
-     */
+    /* Workfile uses a random mkstemp name (no leading dot — openout_any=p
+     * rejects dot-prefixed filenames) so simultaneous tabs never collide. */
     g_autofree char *tmpdir = silktex_editor_get_tmpdir();
     if (!g_file_test(tmpdir, G_FILE_TEST_IS_DIR)) {
         g_mkdir_with_parents(tmpdir, 0755);
@@ -373,8 +354,9 @@ void silktex_editor_set_style_scheme(SilktexEditor *self, const char *scheme_id)
 
     GtkSourceStyleScheme *scheme =
         gtk_source_style_scheme_manager_get_scheme(self->style_manager, scheme_id);
-    if (scheme == NULL) scheme =
-        gtk_source_style_scheme_manager_get_scheme(self->style_manager, silktex_resolved_style_scheme_id());
+    if (scheme == NULL)
+        scheme = gtk_source_style_scheme_manager_get_scheme(self->style_manager,
+                                                            silktex_resolved_style_scheme_id());
     if (scheme == NULL)
         scheme = gtk_source_style_scheme_manager_get_scheme(self->style_manager, "Adwaita-dark");
     if (scheme == NULL)
@@ -386,9 +368,8 @@ void silktex_editor_set_font(SilktexEditor *self, const char *font_desc)
 {
     g_return_if_fail(SILKTEX_IS_EDITOR(self));
 
-    /* GTK4 CSS doesn't accept Pango font description strings in the `font`
-     * shorthand; parse the description and emit font-family / font-size
-     * declarations explicitly. */
+    /* GTK4 CSS doesn't accept Pango font-description strings in the `font`
+     * shorthand — emit font-family / font-size separately. */
     g_autofree char *css = NULL;
     if (font_desc != NULL && *font_desc != '\0') {
         PangoFontDescription *pfd = pango_font_description_from_string(font_desc);
@@ -519,7 +500,6 @@ void silktex_editor_search_next(SilktexEditor *self, gboolean backwards)
 
     gboolean go_back = self->search_backwards ^ backwards;
 
-    /* Advance past the current selection so we don't re-find it */
     if (!go_back) gtk_text_iter_forward_chars(&current, (int)g_utf8_strlen(self->search_term, -1));
 
     while (TRUE) {
@@ -536,7 +516,6 @@ void silktex_editor_search_next(SilktexEditor *self, gboolean backwards)
             silktex_editor_scroll_to_cursor(self);
             return;
         }
-        /* Not a whole-word match – continue from here */
         current = go_back ? mstart : mend;
     }
 }
@@ -618,9 +597,6 @@ void silktex_editor_apply_settings(SilktexEditor *self)
         self->view, config_get_boolean("Editor", "spaces_instof_tabs"));
     gtk_source_view_set_tab_width(self->view, (guint)config_get_integer("Editor", "tabwidth"));
 
-    /* Keep the editor anchored on the left pane and soft-wrap at the pane edge
-     * (where editor and preview meet), rather than extending long lines
-     * horizontally. */
     gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(self->view), GTK_WRAP_WORD_CHAR);
 
     silktex_editor_set_style_scheme(self, silktex_resolved_style_scheme_id());

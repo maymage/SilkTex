@@ -2,16 +2,6 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * SilktexWindow — internal instance layout and cross-unit API.
- *
- * The public type is declared in window.h (opaque pointer). This header
- * completes struct _SilktexWindow so that the main window implementation
- * (window.c) and satellite units (window-git.c, window-primary-menu.c) can
- * share one GObject type without circular includes.
- *
- * Include this header only from those .c files — never from public headers
- * shipped to other modules.
  */
 
 #pragma once
@@ -36,15 +26,13 @@ G_BEGIN_DECLS
  * The window minimum width is derived so a horizontal GtkPaned never ends up
  * with zero room for one of the panes (which breaks the layout on small sizes).
  */
-#define SILKTEX_EDITOR_MIN_WIDTH 0
+#define SILKTEX_EDITOR_MIN_WIDTH       0
 #define SILKTEX_PREVIEW_PANE_MIN_WIDTH 150
-#define SILKTEX_WINDOW_MIN_WIDTH (SILKTEX_EDITOR_MIN_WIDTH + SILKTEX_PREVIEW_PANE_MIN_WIDTH + 72)
-#define SILKTEX_WINDOW_MIN_HEIGHT 400
+#define SILKTEX_WINDOW_MIN_WIDTH       (SILKTEX_EDITOR_MIN_WIDTH + SILKTEX_PREVIEW_PANE_MIN_WIDTH + 72)
+#define SILKTEX_WINDOW_MIN_HEIGHT      400
 
 struct _SilktexWindow {
     AdwApplicationWindow parent_instance;
-
-    /* ---- Template widgets (main.ui) ---- */
 
     AdwToolbarView *root_toolbar_view;
     AdwWindowTitle *window_title;
@@ -70,15 +58,11 @@ struct _SilktexWindow {
     GtkButton *btn_save;
     GtkToggleButton *btn_log;
 
-    /* ---- Core subsystems (not from template) ---- */
-
     SilktexPreview *preview;
     SilktexCompiler *compiler;
     SilktexSearchbar *searchbar;
     SilktexSnippets *snippets;
     SilktexStructure *structure;
-
-    /* Compile log: revealer + text view built in window init */
 
     GtkWidget *log_scroll;
     GtkTextBuffer *log_buf;
@@ -98,8 +82,6 @@ struct _SilktexWindow {
     GtkLabel *git_repo_label;
     GtkListBox *git_list;
     GtkEditable *git_commit_message;
-
-    /* ---- Debounced / responsive behaviour ---- */
 
     guint compile_timer_id;
     guint autosave_timer_id;
@@ -126,8 +108,6 @@ struct _SilktexWindow {
     AdwToast *current_toast;
 };
 
-/* ---- Shared helpers implemented in window.c ---- */
-
 SilktexEditor *silktex_window_editor_for_page(AdwTabPage *page);
 
 void silktex_window_update_window_title(SilktexWindow *self);
@@ -152,13 +132,9 @@ void silktex_window_on_prefs_apply(gpointer user_data);
 
 void silktex_window_install_chrome_css(void);
 
-/* ---- Git UI + actions (window-git.c) ---- */
-
 void silktex_window_git_register_actions(SilktexWindow *self);
 void silktex_window_git_refresh_state(SilktexWindow *self);
 void silktex_window_git_update_actions(SilktexWindow *self);
-
-/* ---- Primary menu, theme, recent files (window-primary-menu.c) ---- */
 
 void silktex_window_apply_theme_from_config(void);
 void silktex_window_install_primary_menu(SilktexWindow *self);
