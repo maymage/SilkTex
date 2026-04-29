@@ -36,8 +36,8 @@ G_BEGIN_DECLS
  * The window minimum width is derived so a horizontal GtkPaned never ends up
  * with zero room for one of the panes (which breaks the layout on small sizes).
  */
-#define SILKTEX_EDITOR_MIN_WIDTH 390
-#define SILKTEX_PREVIEW_PANE_MIN_WIDTH 400
+#define SILKTEX_EDITOR_MIN_WIDTH 0
+#define SILKTEX_PREVIEW_PANE_MIN_WIDTH 150
 #define SILKTEX_WINDOW_MIN_WIDTH (SILKTEX_EDITOR_MIN_WIDTH + SILKTEX_PREVIEW_PANE_MIN_WIDTH + 72)
 #define SILKTEX_WINDOW_MIN_HEIGHT 400
 
@@ -53,6 +53,7 @@ struct _SilktexWindow {
     AdwTabBar *tab_bar;
     AdwOverlaySplitView *split_view;
     GtkPaned *editor_paned;
+    GtkPaned *log_paned;
     AdwToolbarView *editor_toolbar_view;
     GtkBox *editor_bottom_bar;
     AdwToolbarView *preview_toolbar_view;
@@ -67,6 +68,7 @@ struct _SilktexWindow {
     GtkMenuButton *btn_menu;
     GtkMenuButton *btn_git_menu;
     GtkButton *btn_save;
+    GtkToggleButton *btn_log;
 
     /* ---- Core subsystems (not from template) ---- */
 
@@ -78,7 +80,7 @@ struct _SilktexWindow {
 
     /* Compile log: revealer + text view built in window init */
 
-    GtkRevealer *log_revealer;
+    GtkWidget *log_scroll;
     GtkTextBuffer *log_buf;
     GtkWidget *log_text_view;
 

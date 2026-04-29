@@ -28,6 +28,12 @@
  #define PAGE_GAP_BETWEEN 20
  #define PAGE_PADDING PAGE_GAP_BETWEEN
  
+ typedef enum {
+     SILKTEX_PREVIEW_ZOOM_CUSTOM,
+     SILKTEX_PREVIEW_ZOOM_FIT_WIDTH,
+     SILKTEX_PREVIEW_ZOOM_FIT_PAGE
+ } SilktexPreviewZoomMode;
+
  struct _SilktexPreview {
      GtkWidget parent_instance;
  
@@ -40,6 +46,7 @@
      int current_page;
      int n_pages;
      double zoom;
+     SilktexPreviewZoomMode zoom_mode;
  
      double page_width;
      double page_height;
@@ -365,14 +372,27 @@
      }
  }
  
- static void silktex_preview_class_init(SilktexPreviewClass *klass)
+ static void silktex_preview_size_allocate(GtkWidget *widget, int width, int height, int baseline)
+{
+    SilktexPreview *self = SILKTEX_PREVIEW(widget);
+    GTK_WIDGET_CLASS(silktex_preview_parent_class)->size_allocate(widget, width, height, baseline);
+
+    if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH) {
+        silktex_preview_zoom_fit_width(self);
+    } else if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_PAGE) {
+        silktex_preview_zoom_fit_page(self);
+    }
+}
+
+static void silktex_preview_class_init(SilktexPreviewClass *klass)
  {
      GObjectClass *object_class = G_OBJECT_CLASS(klass);
      GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
  
-     object_class->dispose = silktex_preview_dispose;
-     object_class->get_property = silktex_preview_get_property;
-     object_class->set_property = silktex_preview_set_property;
+    object_class->dispose = silktex_preview_dispose;
+    object_class->get_property = silktex_preview_get_property;
+    object_class->set_property = silktex_preview_set_property;
+    widget_class->size_allocate = silktex_preview_size_allocate;
  
      properties[PROP_PAGE] =
          g_param_spec_int("page", NULL, NULL, 0, G_MAXINT, 0, G_PARAM_READWRITE);
@@ -606,10 +626,10 @@
          gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(self->scrolled_window));
      g_signal_connect(vadj, "value-changed", G_CALLBACK(on_vadj_value_changed), self);
  
-     self->scale_factor_handler =
-         g_signal_connect(self, "notify::scale-factor", G_CALLBACK(on_scale_factor_changed), self);
- 
-     AdwStyleManager *sm = adw_style_manager_get_default();
+    self->scale_factor_handler =
+        g_signal_connect(self, "notify::scale-factor", G_CALLBACK(on_scale_factor_changed), self);
+
+    AdwStyleManager *sm = adw_style_manager_get_default();
      g_signal_connect_object(sm, "notify::dark", G_CALLBACK(on_scale_factor_changed), self,
                              G_CONNECT_DEFAULT);
  }
@@ -757,6 +777,7 @@
  void silktex_preview_set_zoom(SilktexPreview *self, double zoom)
  {
      g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+     self->zoom_mode = SILKTEX_PREVIEW_ZOOM_CUSTOM;
      if (zoom < 0.1) zoom = 0.1;
      if (zoom > 10.0) zoom = 10.0;
      if (fabs(self->zoom - zoom) > 0.001) {
@@ -782,22 +803,41 @@
  void silktex_preview_zoom_fit_width(SilktexPreview *self)
  {
      g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+     self->zoom_mode = SILKTEX_PREVIEW_ZOOM_FIT_WIDTH;
      if (self->document == NULL) return;
      int widget_width = gtk_widget_get_width(self->scrolled_window);
-     if (widget_width > 0 && self->page_width > 0)
-         silktex_preview_set_zoom(self, (widget_width - 2 * PAGE_PADDING) / self->page_width);
+     if (widget_width > 0 && self->page_width > 0) {
+         double new_zoom = (widget_width - 2 * PAGE_PADDING) / self->page_width;
+         if (new_zoom < 0.1) new_zoom = 0.1;
+         if (new_zoom > 10.0) new_zoom = 10.0;
+         if (fabs(self->zoom - new_zoom) > 0.001) {
+             self->zoom = new_zoom;
+             silktex_preview_invalidate_cache(self);
+             g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_ZOOM]);
+             gtk_widget_queue_draw(self->drawing_area);
+         }
+     }
  }
  
  void silktex_preview_zoom_fit_page(SilktexPreview *self)
  {
      g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+     self->zoom_mode = SILKTEX_PREVIEW_ZOOM_FIT_PAGE;
      if (self->document == NULL) return;
      int widget_width  = gtk_widget_get_width(self->scrolled_window);
      int widget_height = gtk_widget_get_height(self->scrolled_window);
      if (widget_width > 0 && widget_height > 0 && self->page_width > 0 && self->page_height > 0) {
          double zoom_w = (widget_width  - 2 * PAGE_PADDING) / self->page_width;
          double zoom_h = (widget_height - 2 * PAGE_PADDING) / self->page_height;
-         silktex_preview_set_zoom(self, MIN(zoom_w, zoom_h));
+         double new_zoom = MIN(zoom_w, zoom_h);
+         if (new_zoom < 0.1) new_zoom = 0.1;
+         if (new_zoom > 10.0) new_zoom = 10.0;
+         if (fabs(self->zoom - new_zoom) > 0.001) {
+             self->zoom = new_zoom;
+             silktex_preview_invalidate_cache(self);
+             g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_ZOOM]);
+             gtk_widget_queue_draw(self->drawing_area);
+         }
      }
  }
  

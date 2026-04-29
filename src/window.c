@@ -231,8 +231,8 @@ static void on_compile_finished(SilktexCompiler *compiler, gpointer user_data)
     }
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compiled"));
-    if (self->log_revealer)
-        gtk_widget_remove_css_class(GTK_WIDGET(self->log_revealer), "error");
+    if (self->log_scroll)
+        gtk_widget_remove_css_class(GTK_WIDGET(self->log_scroll), "error");
     if (self->btn_compile) gtk_widget_remove_css_class(GTK_WIDGET(self->btn_compile), "error");
 }
 
@@ -242,8 +242,8 @@ static void on_compile_error(SilktexCompiler *compiler, gpointer user_data)
     silktex_window_show_toast(self, _("Compilation error — see compile log"));
     silktex_window_update_log_panel(self);
     if (self->preview_status) gtk_label_set_label(self->preview_status, _("Compile error"));
-    if (self->log_revealer)
-        gtk_widget_add_css_class(GTK_WIDGET(self->log_revealer), "error");
+    if (self->log_scroll)
+        gtk_widget_add_css_class(GTK_WIDGET(self->log_scroll), "error");
     if (self->btn_compile) gtk_widget_add_css_class(GTK_WIDGET(self->btn_compile), "error");
 
     /*
@@ -873,17 +873,17 @@ static void action_toggle_log(GSimpleAction *a, GVariant *p, gpointer ud)
     (void)a;
     (void)p;
     SilktexWindow *self = SILKTEX_WINDOW(ud);
-    if (!self->log_revealer) return;
-    gboolean vis = gtk_revealer_get_reveal_child(self->log_revealer);
-    gtk_revealer_set_reveal_child(self->log_revealer, !vis);
+    if (!self->log_scroll) return;
+    gboolean vis = gtk_widget_get_visible(self->log_scroll);
+    gtk_widget_set_visible(self->log_scroll, !vis);
 }
 
-static void on_log_revealer_reveal_changed(GtkRevealer *revealer, GParamSpec *pspec,
+static void on_log_scroll_visible_changed(GtkWidget *widget, GParamSpec *pspec,
                                            gpointer user_data)
 {
     (void)pspec;
     SilktexWindow *self = SILKTEX_WINDOW(user_data);
-    if (gtk_revealer_get_reveal_child(revealer)) {
+    if (gtk_widget_get_visible(widget)) {
         if (self->log_text_view) gtk_widget_grab_focus(self->log_text_view);
     } else {
         silktex_window_focus_active_editor(self);
@@ -892,25 +892,20 @@ static void on_log_revealer_reveal_changed(GtkRevealer *revealer, GParamSpec *ps
 
 static int current_editor_min_width(SilktexWindow *self)
 {
-    int min_width = SILKTEX_EDITOR_MIN_WIDTH;
-    if (self && self->btn_tools_toggle &&
-        gtk_toggle_button_get_active(self->btn_tools_toggle))
-        min_width += 240;
-    return min_width;
+    return SILKTEX_EDITOR_MIN_WIDTH;
 }
 
 static void update_editor_min_width_constraints(SilktexWindow *self)
 {
     if (!self) return;
-    int min_width = current_editor_min_width(self);
-    if (self->editor_toolbar_view)
-        gtk_widget_set_size_request(GTK_WIDGET(self->editor_toolbar_view), min_width, -1);
 
     if (!self->editor_paned || !self->preview_toolbar_view) return;
     if (!gtk_widget_get_visible(GTK_WIDGET(self->preview_toolbar_view))) return;
 
     int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
     if (w < 1) return;
+
+    int min_width = current_editor_min_width(self);
 
     int max_start = w - SILKTEX_PREVIEW_PANE_MIN_WIDTH;
     if (max_start < min_width) max_start = min_width;
@@ -1464,6 +1459,7 @@ static void silktex_window_class_init(SilktexWindowClass *klass)
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, tab_bar);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, split_view);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_paned);
+    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, log_paned);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_toolbar_view);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, editor_bottom_bar);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, preview_toolbar_view);
@@ -1561,9 +1557,6 @@ static void silktex_window_init(SilktexWindow *self)
     g_type_ensure(SILKTEX_TYPE_PREVIEW);
     silktex_window_install_chrome_css();
     gtk_widget_init_template(GTK_WIDGET(self));
-
-    gtk_widget_set_size_request(GTK_WIDGET(self), SILKTEX_WINDOW_MIN_WIDTH,
-                                SILKTEX_WINDOW_MIN_HEIGHT);
 
     /* Flat top bars: avoid an extra "step" and shadow between title bar,
      * tab strip, and the split — reads as one continuous header band. */
@@ -1683,18 +1676,9 @@ static void silktex_window_init(SilktexWindow *self)
 
     /* ---- compile log panel ----
      *
-     * Revealer sits as a *bottom* bar of the editor ToolbarView, just above
-     * editor_bottom_bar. Open/close via Document → Compile log (win.toggle-log). */
+     * Scrolled window sits as the end child of log_paned.
+     * Open/close via Document → Compile log (win.toggle-log). */
     {
-        GtkWidget *revealer = gtk_revealer_new();
-        gtk_widget_add_css_class(revealer, "silktex-compile-log");
-        gtk_revealer_set_transition_type(GTK_REVEALER(revealer),
-                                         GTK_REVEALER_TRANSITION_TYPE_SLIDE_UP);
-        gtk_revealer_set_reveal_child(GTK_REVEALER(revealer), FALSE);
-        self->log_revealer = GTK_REVEALER(revealer);
-        g_signal_connect(revealer, "notify::reveal-child",
-                         G_CALLBACK(on_log_revealer_reveal_changed), self);
-
         self->log_buf = gtk_text_buffer_new(NULL);
         GtkWidget *log_tv = gtk_text_view_new_with_buffer(self->log_buf);
         gtk_text_view_set_editable(GTK_TEXT_VIEW(log_tv), FALSE);
@@ -1705,12 +1689,23 @@ static void silktex_window_init(SilktexWindow *self)
         self->log_text_view = log_tv;
 
         GtkWidget *log_scroll = gtk_scrolled_window_new();
-        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(log_scroll), 300);
+        gtk_widget_add_css_class(log_scroll, "silktex-compile-log");
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(log_scroll), 150);
         gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(log_scroll), log_tv);
-        gtk_revealer_set_child(GTK_REVEALER(revealer), log_scroll);
+        gtk_widget_set_visible(log_scroll, FALSE);
+        self->log_scroll = log_scroll;
+        
+        g_signal_connect(log_scroll, "notify::visible",
+                         G_CALLBACK(on_log_scroll_visible_changed), self);
 
-        if (self->editor_toolbar_view) {
-            adw_toolbar_view_add_bottom_bar(self->editor_toolbar_view, revealer);
+        if (self->log_paned) {
+            gtk_paned_set_end_child(self->log_paned, log_scroll);
+        }
+        
+        if (self->btn_log) {
+            g_object_bind_property(self->btn_log, "active",
+                                   log_scroll, "visible",
+                                   G_BINDING_BIDIRECTIONAL | G_BINDING_SYNC_CREATE);
         }
     }
 
