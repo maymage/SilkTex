@@ -266,6 +266,26 @@ static void on_preview_page_changed(GObject *p, GParamSpec *ps, gpointer ud)
     silktex_window_update_page_label(SILKTEX_WINDOW(ud));
 }
 
+static void on_preview_zoom_changed(GObject *p, GParamSpec *ps, gpointer ud)
+{
+    SilktexWindow *self = SILKTEX_WINDOW(ud);
+    if (!self->preview) return;
+
+    SilktexPreviewZoomMode mode = silktex_preview_get_zoom_mode(self->preview);
+    
+    GAction *fit_width_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit");
+    if (fit_width_action) {
+        g_simple_action_set_state(G_SIMPLE_ACTION(fit_width_action), 
+                                  g_variant_new_boolean(mode == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH));
+    }
+    
+    GAction *fit_page_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit-page");
+    if (fit_page_action) {
+        g_simple_action_set_state(G_SIMPLE_ACTION(fit_page_action), 
+                                  g_variant_new_boolean(mode == SILKTEX_PREVIEW_ZOOM_FIT_PAGE));
+    }
+}
+
 static gboolean on_editor_scroll_zoom(GtkEventControllerScroll *ctrl, double dx, double dy,
                                       gpointer user_data);
 
