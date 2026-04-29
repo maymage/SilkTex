@@ -21,6 +21,12 @@ typedef enum {
     SILKTEX_PREVIEW_LAYOUT_SINGLE_PAGE,
 } SilktexPreviewLayout;
 
+typedef enum {
+    SILKTEX_PREVIEW_ZOOM_CUSTOM,
+    SILKTEX_PREVIEW_ZOOM_FIT_WIDTH,
+    SILKTEX_PREVIEW_ZOOM_FIT_PAGE
+} SilktexPreviewZoomMode;
+
 SilktexPreview *silktex_preview_new(void);
 
 gboolean silktex_preview_load_file(SilktexPreview *self, const char *path);
@@ -40,7 +46,10 @@ void silktex_preview_zoom_in(SilktexPreview *self);
 void silktex_preview_zoom_out(SilktexPreview *self);
 void silktex_preview_zoom_fit_width(SilktexPreview *self);
 void silktex_preview_zoom_fit_page(SilktexPreview *self);
+void silktex_preview_toggle_zoom_fit_width(SilktexPreview *self);
+void silktex_preview_toggle_zoom_fit_page(SilktexPreview *self);
 
+SilktexPreviewZoomMode silktex_preview_get_zoom_mode(SilktexPreview *self);
 SilktexPreviewLayout silktex_preview_get_layout(SilktexPreview *self);
 void silktex_preview_set_layout(SilktexPreview *self, SilktexPreviewLayout layout);
 

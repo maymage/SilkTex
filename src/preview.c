@@ -25,16 +25,10 @@
  #endif
  #include <math.h>
  
- #define PAGE_GAP_BETWEEN 20
- #define PAGE_PADDING PAGE_GAP_BETWEEN
- 
- typedef enum {
-     SILKTEX_PREVIEW_ZOOM_CUSTOM,
-     SILKTEX_PREVIEW_ZOOM_FIT_WIDTH,
-     SILKTEX_PREVIEW_ZOOM_FIT_PAGE
- } SilktexPreviewZoomMode;
+#define PAGE_GAP_BETWEEN 20
+#define PAGE_PADDING PAGE_GAP_BETWEEN
 
- struct _SilktexPreview {
+struct _SilktexPreview {
      GtkWidget parent_instance;
  
      GtkWidget *scrolled_window;
@@ -819,29 +813,55 @@ static void silktex_preview_class_init(SilktexPreviewClass *klass)
      }
  }
  
- void silktex_preview_zoom_fit_page(SilktexPreview *self)
- {
-     g_return_if_fail(SILKTEX_IS_PREVIEW(self));
-     self->zoom_mode = SILKTEX_PREVIEW_ZOOM_FIT_PAGE;
-     if (self->document == NULL) return;
-     int widget_width  = gtk_widget_get_width(self->scrolled_window);
-     int widget_height = gtk_widget_get_height(self->scrolled_window);
-     if (widget_width > 0 && widget_height > 0 && self->page_width > 0 && self->page_height > 0) {
-         double zoom_w = (widget_width  - 2 * PAGE_PADDING) / self->page_width;
-         double zoom_h = (widget_height - 2 * PAGE_PADDING) / self->page_height;
-         double new_zoom = MIN(zoom_w, zoom_h);
-         if (new_zoom < 0.1) new_zoom = 0.1;
-         if (new_zoom > 10.0) new_zoom = 10.0;
-         if (fabs(self->zoom - new_zoom) > 0.001) {
-             self->zoom = new_zoom;
-             silktex_preview_invalidate_cache(self);
-             g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_ZOOM]);
-             gtk_widget_queue_draw(self->drawing_area);
-         }
-     }
- }
+void silktex_preview_zoom_fit_page(SilktexPreview *self)
+{
+    g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+    self->zoom_mode = SILKTEX_PREVIEW_ZOOM_FIT_PAGE;
+    if (self->document == NULL) return;
+    int widget_width  = gtk_widget_get_width(self->scrolled_window);
+    int widget_height = gtk_widget_get_height(self->scrolled_window);
+    if (widget_width > 0 && widget_height > 0 && self->page_width > 0 && self->page_height > 0) {
+        double zoom_w = (widget_width  - 2 * PAGE_PADDING) / self->page_width;
+        double zoom_h = (widget_height - 2 * PAGE_PADDING) / self->page_height;
+        double new_zoom = MIN(zoom_w, zoom_h);
+        if (new_zoom < 0.1) new_zoom = 0.1;
+        if (new_zoom > 10.0) new_zoom = 10.0;
+        if (fabs(self->zoom - new_zoom) > 0.001) {
+            self->zoom = new_zoom;
+            silktex_preview_invalidate_cache(self);
+            g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_ZOOM]);
+            gtk_widget_queue_draw(self->drawing_area);
+        }
+    }
+}
+
+void silktex_preview_toggle_zoom_fit_width(SilktexPreview *self)
+{
+    g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+    if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH) {
+        self->zoom_mode = SILKTEX_PREVIEW_ZOOM_CUSTOM;
+    } else {
+        silktex_preview_zoom_fit_width(self);
+    }
+}
+
+void silktex_preview_toggle_zoom_fit_page(SilktexPreview *self)
+{
+    g_return_if_fail(SILKTEX_IS_PREVIEW(self));
+    if (self->zoom_mode == SILKTEX_PREVIEW_ZOOM_FIT_PAGE) {
+        self->zoom_mode = SILKTEX_PREVIEW_ZOOM_CUSTOM;
+    } else {
+        silktex_preview_zoom_fit_page(self);
+    }
+}
  
- SilktexPreviewLayout silktex_preview_get_layout(SilktexPreview *self)
+ SilktexPreviewZoomMode silktex_preview_get_zoom_mode(SilktexPreview *self)
+{
+    g_return_val_if_fail(SILKTEX_IS_PREVIEW(self), SILKTEX_PREVIEW_ZOOM_CUSTOM);
+    return self->zoom_mode;
+}
+
+SilktexPreviewLayout silktex_preview_get_layout(SilktexPreview *self)
  {
      g_return_val_if_fail(SILKTEX_IS_PREVIEW(self), SILKTEX_PREVIEW_LAYOUT_CONTINUOUS);
      return self->layout;

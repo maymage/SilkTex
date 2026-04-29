@@ -746,11 +746,31 @@ static void action_zoom_out(GSimpleAction *a, GVariant *p, gpointer ud)
 }
 static void action_zoom_fit(GSimpleAction *a, GVariant *p, gpointer ud)
 {
-    silktex_preview_zoom_fit_width(SILKTEX_WINDOW(ud)->preview);
+    SilktexWindow *self = SILKTEX_WINDOW(ud);
+    SilktexPreview *preview = self->preview;
+    silktex_preview_toggle_zoom_fit_width(preview);
+    
+    gboolean active = (silktex_preview_get_zoom_mode(preview) == SILKTEX_PREVIEW_ZOOM_FIT_WIDTH);
+    g_simple_action_set_state(a, g_variant_new_boolean(active));
+    
+    GAction *fit_page_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit-page");
+    if (fit_page_action) {
+        g_simple_action_set_state(G_SIMPLE_ACTION(fit_page_action), g_variant_new_boolean(FALSE));
+    }
 }
 static void action_zoom_fit_page(GSimpleAction *a, GVariant *p, gpointer ud)
 {
-    silktex_preview_zoom_fit_page(SILKTEX_WINDOW(ud)->preview);
+    SilktexWindow *self = SILKTEX_WINDOW(ud);
+    SilktexPreview *preview = self->preview;
+    silktex_preview_toggle_zoom_fit_page(preview);
+
+    gboolean active = (silktex_preview_get_zoom_mode(preview) == SILKTEX_PREVIEW_ZOOM_FIT_PAGE);
+    g_simple_action_set_state(a, g_variant_new_boolean(active));
+    
+    GAction *fit_width_action = g_action_map_lookup_action(G_ACTION_MAP(self), "zoom-fit");
+    if (fit_width_action) {
+        g_simple_action_set_state(G_SIMPLE_ACTION(fit_width_action), g_variant_new_boolean(FALSE));
+    }
 }
 static void action_zoom_reset(GSimpleAction *a, GVariant *p, gpointer ud)
 {
@@ -1359,8 +1379,8 @@ static const GActionEntry win_actions[] = {
     {"insert-biblio", action_insert_biblio},
     {"zoom-in", action_zoom_in},
     {"zoom-out", action_zoom_out},
-    {"zoom-fit", action_zoom_fit},
-    {"zoom-fit-page", action_zoom_fit_page},
+    {"zoom-fit", action_zoom_fit, NULL, "false", NULL},
+    {"zoom-fit-page", action_zoom_fit_page, NULL, "false", NULL},
     {"zoom-reset", action_zoom_reset},
     {"prev-page", action_prev_page},
     {"next-page", action_next_page},
@@ -1635,6 +1655,7 @@ static void silktex_window_init(SilktexWindow *self)
 
     g_signal_connect(self->preview, "notify::page", G_CALLBACK(on_preview_page_changed), self);
     g_signal_connect(self->preview, "notify::n-pages", G_CALLBACK(on_preview_page_changed), self);
+    g_signal_connect(self->preview, "notify::zoom", G_CALLBACK(on_preview_zoom_changed), self);
     g_signal_connect(self->preview, "inverse-sync-requested",
                      G_CALLBACK(on_preview_inverse_sync_requested), self);
 
