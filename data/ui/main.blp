@@ -176,11 +176,16 @@ template $SilktexWindow : Adw.ApplicationWindow {
         hexpand: true;
       }
 
-      Gtk.MenuButton btn_git_menu {
-        icon-name: "git-symbolic";
-        tooltip-text: _("Git");
-        menu-model: git_menu;
-        styles ["flat"]
+      Gtk.Revealer {
+        transition-type: slide_left;
+        transition-duration: 200;
+        reveal-child: bind btn_tools_toggle.active;
+        child: Gtk.MenuButton btn_git_menu {
+          icon-name: "git-symbolic";
+          tooltip-text: _("Git");
+          menu-model: git_menu;
+          styles ["flat"]
+        };
       }
 
       // ── SAVE PILL (right, always visible) ────────────────────────────
