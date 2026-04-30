@@ -42,7 +42,6 @@ void silktex_snippets_reset_to_default(SilktexSnippets *self);
 void silktex_snippets_set_modifiers(SilktexSnippets *self, const char *modifier1,
                                     const char *modifier2);
 
-/* Key-press handler – returns TRUE if the event was consumed */
 gboolean silktex_snippets_handle_key(SilktexSnippets *self, SilktexEditor *editor, guint keyval,
                                      GdkModifierType state);
 

@@ -2,8 +2,6 @@
  * SilkTex - constants.h
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Package identifiers and XDG paths.
  */
 
 #ifndef SILKTEX_CONSTANTS_H

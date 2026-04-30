@@ -2,9 +2,6 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * PDF preview widget API: load path, page navigation, zoom, layout mode,
- * scroll-to coordinates for SyncTeX forward sync.
  */
 
 #pragma once
@@ -20,6 +17,12 @@ typedef enum {
     SILKTEX_PREVIEW_LAYOUT_CONTINUOUS,
     SILKTEX_PREVIEW_LAYOUT_SINGLE_PAGE,
 } SilktexPreviewLayout;
+
+typedef enum {
+    SILKTEX_PREVIEW_ZOOM_CUSTOM,
+    SILKTEX_PREVIEW_ZOOM_FIT_WIDTH,
+    SILKTEX_PREVIEW_ZOOM_FIT_PAGE
+} SilktexPreviewZoomMode;
 
 SilktexPreview *silktex_preview_new(void);
 
@@ -40,7 +43,10 @@ void silktex_preview_zoom_in(SilktexPreview *self);
 void silktex_preview_zoom_out(SilktexPreview *self);
 void silktex_preview_zoom_fit_width(SilktexPreview *self);
 void silktex_preview_zoom_fit_page(SilktexPreview *self);
+void silktex_preview_toggle_zoom_fit_width(SilktexPreview *self);
+void silktex_preview_toggle_zoom_fit_page(SilktexPreview *self);
 
+SilktexPreviewZoomMode silktex_preview_get_zoom_mode(SilktexPreview *self);
 SilktexPreviewLayout silktex_preview_get_layout(SilktexPreview *self);
 void silktex_preview_set_layout(SilktexPreview *self, SilktexPreviewLayout layout);
 

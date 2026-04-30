@@ -2,21 +2,10 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Git integration for the main window — status dialog, stage/unstage, commit,
- * pull, and push. All subprocess / blocking work runs on worker threads via
- * GTask; callbacks hop back to the UI thread to update widgets and toasts.
- *
- * Low-level git operations live in git.c; this file only wires them to GTK
- * and AdwDialog. Window pointers in async code use GWeakRef (or are cleared
- * on dialog close) so callbacks never touch a destroyed window.
  */
 
 #include "window-private.h"
 #include "i18n.h"
-
-/* -------------------------------------------------------------------------- */
-/* Task payloads — freed via g_task_set_task_data destroy notify or GClosure */
 
 typedef enum {
     GIT_OP_STAGE,
@@ -44,9 +33,6 @@ typedef struct {
     GWeakRef win_ref;
     char *path;
 } GitStatusTaskData;
-
-/* -------------------------------------------------------------------------- */
-/* Small helpers */
 
 static void git_status_task_data_free(gpointer data)
 {
@@ -196,8 +182,6 @@ static const char *success_message_for_operation(GitOperation op)
 
 static void update_git_dialog(SilktexWindow *self);
 
-/* UI thread — resolves GTask, shows toast, refreshes status list */
-
 static void on_git_operation_finished(GObject *source, GAsyncResult *result, gpointer user_data)
 {
     (void)source;
@@ -299,13 +283,14 @@ static void update_git_dialog(SilktexWindow *self)
 
     if (self->git_status == NULL) {
         gtk_label_set_label(self->git_branch_label, _("No Git repository"));
-        gtk_label_set_label(self->git_repo_label,
-                            self->git_status_message ? self->git_status_message
-                                                     : _("Save a file inside a Git repository."));
+        gtk_label_set_label(self->git_repo_label, self->git_status_message
+                                                      ? self->git_status_message
+                                                      : _("Save a file inside a Git repository."));
 
         GtkWidget *row = adw_action_row_new();
         adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), _("No changes to show"));
-        adw_action_row_set_subtitle(ADW_ACTION_ROW(row), _("Open or save a document in a Git repository."));
+        adw_action_row_set_subtitle(ADW_ACTION_ROW(row),
+                                    _("Open or save a document in a Git repository."));
         gtk_list_box_append(self->git_list, row);
         return;
     }
@@ -317,7 +302,8 @@ static void update_git_dialog(SilktexWindow *self)
     if (self->git_status->files->len == 0) {
         GtkWidget *row = adw_action_row_new();
         adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), _("Working Tree Clean"));
-        adw_action_row_set_subtitle(ADW_ACTION_ROW(row), _("There are no staged or unstaged changes."));
+        adw_action_row_set_subtitle(ADW_ACTION_ROW(row),
+                                    _("There are no staged or unstaged changes."));
         gtk_list_box_append(self->git_list, row);
         return;
     }
@@ -401,8 +387,6 @@ static void on_git_status_loaded(GObject *source, GAsyncResult *result, gpointer
     g_object_unref(self);
 }
 
-/* Entry point from window.c on tab change, save, autosave, etc. */
-
 void silktex_window_git_refresh_state(SilktexWindow *self)
 {
     SilktexEditor *editor = silktex_window_get_active_editor(self);
@@ -429,10 +413,7 @@ void silktex_window_git_refresh_state(SilktexWindow *self)
     g_object_unref(task);
 }
 
-/*
- * Clear dangling pointers — the dialog's children are destroyed; keeping
- * GtkLabel* / GtkListBox* would be use-after-free.
- */
+/* Children are destroyed on close; NULLing prevents use-after-free. */
 
 static void on_git_dialog_closed(AdwDialog *dialog, gpointer user_data)
 {
@@ -521,11 +502,8 @@ static GtkWidget *build_git_dialog_content(SilktexWindow *self)
     return toolbarview;
 }
 
-/*
- * Do not call adw_dialog_present twice on the same dialog — it can confuse
- * AdwDialogHost / AdwFloatingSheet ("Broken accounting of active state").
- * If already open, just refresh the list.
- */
+/* Calling adw_dialog_present twice on the same dialog causes "Broken accounting
+ * of active state" in AdwFloatingSheet — refresh only if already open. */
 
 static void show_git_dialog(SilktexWindow *self)
 {
@@ -555,10 +533,7 @@ static void action_git_status(GSimpleAction *a, GVariant *p, gpointer ud)
     silktex_window_git_refresh_state(self);
 }
 
-/*
- * Focus the commit field only after the sheet is mapped — grabbing focus in
- * the same tick as adw_dialog_present contributes to broken active state.
- */
+/* Grab focus after map, not in the same tick as adw_dialog_present — avoids broken active state. */
 
 static void on_git_commit_entry_mapped(GtkWidget *entry, gpointer user_data)
 {

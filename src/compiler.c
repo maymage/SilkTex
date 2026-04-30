@@ -2,17 +2,6 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * SilktexCompiler — background LaTeX runner for one process-wide queue.
- *
- * A dedicated worker thread waits on a condition variable, runs the configured
- * typesetter (e.g. pdflatex) against the editor's workfile, captures log
- * output, and emits compile-finished / compile-error on the main loop.
- * PDFs are backed up before each run so a failed build can restore the last
- * good preview (see run_typesetter).
- *
- * request_compile coalesces rapid edits; force_compile runs immediately from
- * the UI (Compile action).
  */
 
 #include "compiler.h"
@@ -45,7 +34,7 @@ struct _SilktexCompiler {
 
 G_DEFINE_FINAL_TYPE (SilktexCompiler, silktex_compiler, G_TYPE_OBJECT)
 
-enum { SIGNAL_COMPILE_STARTED, SIGNAL_COMPILE_FINISHED, SIGNAL_COMPILE_ERROR, N_SIGNALS };
+    enum { SIGNAL_COMPILE_STARTED, SIGNAL_COMPILE_FINISHED, SIGNAL_COMPILE_ERROR, N_SIGNALS };
 
 static guint signals[N_SIGNALS];
 
@@ -80,8 +69,8 @@ static gboolean spawn_tex_command(const char *working_dir, GPtrArray *argv, char
 
     /* Prefer sandbox tools (TeXLive extension) when available; fall back to host otherwise. */
     return g_spawn_sync(working_dir && *working_dir ? working_dir : NULL, (gchar **)argv->pdata,
-                        NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, stdout_buf, stderr_buf,
-                        exit_status, error);
+                        NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, stdout_buf, stderr_buf, exit_status,
+                        error);
 }
 
 static gboolean emit_compile_finished(gpointer user_data)
@@ -98,17 +87,8 @@ static gboolean emit_compile_error(gpointer user_data)
     return G_SOURCE_REMOVE;
 }
 
-/*
- * Run the configured typesetter on `workfile`, producing aux/log/pdf in
- * `outdir` under the job name derived from `workfile`.  `source_dir` is
- * passed as the child's working directory so relative \input{} paths
- * resolve against the user's document, not against the cache dir.
- *
- * To make auto-compilation safe — a broken draft must never clobber the
- * last good preview — we back the previous PDF up before invoking the
- * typesetter.  On success we drop the backup; on failure we restore it so
- * the preview keeps displaying the last successfully rendered version.
- */
+/* Back up PDF/synctex before invoking the typesetter; restore on failure so
+ * the preview always shows the last successfully rendered version. */
 static gboolean run_typesetter(SilktexCompiler *self, const char *workfile, const char *outdir,
                                const char *source_dir)
 {
@@ -164,7 +144,6 @@ static gboolean run_typesetter(SilktexCompiler *self, const char *workfile, cons
     if (!result) {
         g_warning("Failed to run typesetter: %s", error ? error->message : "unknown");
         g_clear_error(&error);
-        /* Child failed to spawn at all — restore whatever was there. */
         if (g_file_test(backup_pdf, G_FILE_TEST_EXISTS)) {
             g_autoptr(GFile) src = g_file_new_for_path(backup_pdf);
             g_autoptr(GFile) dst = g_file_new_for_path(final_pdf);
@@ -192,12 +171,11 @@ static gboolean run_typesetter(SilktexCompiler *self, const char *workfile, cons
     gboolean success = (exit_status == 0);
 
     if (success) {
-        /* Good run – drop the backup. */
         g_remove(backup_pdf);
         g_remove(backup_synctex_gz);
         g_remove(backup_synctex);
     } else {
-        /* Failed run may have truncated artifacts. Restore last-good files so
+        /* Failed run may have truncated artifacts — restore last-good so
          * preview and SyncTeX mappings stay in sync. */
         if (g_file_test(backup_pdf, G_FILE_TEST_EXISTS)) {
             g_autoptr(GFile) src = g_file_new_for_path(backup_pdf);
@@ -255,11 +233,7 @@ static gpointer compile_thread_func(gpointer data)
             continue;
         }
 
-        /*
-         * The workfile was snapshotted from the GtkTextBuffer on the *main*
-         * thread before we were signalled.  Do NOT touch the buffer from
-         * here – GtkTextBuffer is not thread-safe.
-         */
+        /* Workfile was snapshotted on the main thread — never touch GtkTextBuffer here. */
         const char *workfile = silktex_editor_get_workfile(editor);
 
         if (workfile != NULL) {

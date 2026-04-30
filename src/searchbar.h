@@ -2,8 +2,6 @@
  * SilkTex - Inline find/replace bar
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Find/replace UI widget; must be given the active SilktexEditor for operations.
  */
 #pragma once
 #include <gtk/gtk.h>
@@ -16,11 +14,8 @@ G_DECLARE_FINAL_TYPE(SilktexSearchbar, silktex_searchbar, SILKTEX, SEARCHBAR, Gt
 
 SilktexSearchbar *silktex_searchbar_new(void);
 
-/* Show / hide the bar, optionally in replace mode */
 void silktex_searchbar_open(SilktexSearchbar *self, gboolean replace_mode);
 void silktex_searchbar_close(SilktexSearchbar *self);
-
-/* Set editor that operations act on */
 void silktex_searchbar_set_editor(SilktexSearchbar *self, SilktexEditor *editor);
 
 G_END_DECLS

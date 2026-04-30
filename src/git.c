@@ -2,12 +2,6 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Git subprocess helpers — synchronous g_spawn_* wrappers, no GTK.
- *
- * Parses porcelain v1 status, discovers repo root from a file path, and
- * exposes stage / unstage / commit / pull / push. Callers (window-git.c)
- * must run these off the UI thread for responsiveness.
  */
 
 #include "git.h"
@@ -35,7 +29,7 @@ static gboolean run_git(const char *cwd, const char *const argv[], char **output
     int exit_status = 0;
 
     gboolean spawned = g_spawn_sync(cwd, (gchar **)argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL,
-                                   &stdout_buf, &stderr_buf, &exit_status, error);
+                                    &stdout_buf, &stderr_buf, &exit_status, error);
     if (!spawned) return FALSE;
 
     if (!g_spawn_check_wait_status(exit_status, error)) {
@@ -162,7 +156,8 @@ gboolean silktex_git_unstage_file(const char *repo_root, const char *path, GErro
     return run_git(repo_root, argv, NULL, error);
 }
 
-gboolean silktex_git_commit(const char *repo_root, const char *message, char **output, GError **error)
+gboolean silktex_git_commit(const char *repo_root, const char *message, char **output,
+                            GError **error)
 {
     const char *argv[] = {"git", "commit", "-m", message, NULL};
     return run_git(repo_root, argv, output, error);

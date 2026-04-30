@@ -2,10 +2,6 @@
  * SilkTex - Document outline sidebar
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Parses the active editor's buffer for \part, \chapter, \section, \subsection,
- * \subsubsection and \paragraph commands and renders them as a scrollable tree
- * list.  Clicking an entry jumps the editor cursor to the corresponding line.
  */
 #pragma once
 
@@ -23,7 +19,6 @@ SilktexStructure *silktex_structure_new(void);
  * and subscribes to the editor's `changed` signal. */
 void silktex_structure_set_editor(SilktexStructure *self, SilktexEditor *editor);
 
-/* Rescan the editor buffer now. */
 void silktex_structure_refresh(SilktexStructure *self);
 
 G_END_DECLS

@@ -2,12 +2,6 @@
  * SilkTex - Preferences dialog
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Implementation: builds Adwaita preference rows programmatically, binds them
- * to config keys, embeds a snippet JSON editor with validation, and exposes
- * GtkSourceView scheme / typesetter choices. All settings are written to
- * configfile on apply; the apply-callback pushes changes to every open editor
- * and restarts autosave / compile options as needed.
  */
 #include "prefs.h"
 #include "configfile.h"
@@ -24,7 +18,6 @@ struct _SilktexPrefs {
     SilktexPrefsApplyFunc apply_func;
     gpointer apply_data;
 
-    /* Editor page widgets we need to read back */
     AdwSwitchRow *row_line_numbers;
     AdwSwitchRow *row_highlighting;
     AdwSwitchRow *row_textwrap;
@@ -35,20 +28,17 @@ struct _SilktexPrefs {
     AdwComboRow *row_scheme_light;
     AdwComboRow *row_scheme_dark;
 
-    /* Compile page */
     AdwComboRow *row_typesetter;
     AdwSwitchRow *row_shellescape;
     AdwSwitchRow *row_synctex;
     AdwSwitchRow *row_auto_compile;
     AdwSpinRow *row_compile_timer;
 
-    /* Files page */
     AdwSwitchRow *row_autosave;
     AdwSpinRow *row_autosave_timer;
 
-    /* Snippets page */
     SilktexSnippets *snippets;
-    GtkTextBuffer *snippet_buf; /* buffer for the inline snippet editor */
+    GtkTextBuffer *snippet_buf;
     AdwComboRow *row_snippet_pick;
     AdwEntryRow *row_snippet_name;
     AdwEntryRow *row_snippet_key;
@@ -56,12 +46,11 @@ struct _SilktexPrefs {
     GtkLabel *lbl_snippet_accel_preview;
     AdwComboRow *row_snippet_mod1;
     AdwComboRow *row_snippet_mod2;
-    GPtrArray *snippet_entries; /* SnippetEntry* */
+    GPtrArray *snippet_entries;
     guint current_snippet_index;
-    gboolean snippets_updating_ui; /* guard: block feedback loops while we re-populate the snippet
-                                      widgets */
+    gboolean snippets_updating_ui; /* guard against feedback loops while re-populating widgets */
 
-    GtkStringList *scheme_ids; /* parallel to the combo model */
+    GtkStringList *scheme_ids;
 };
 
 typedef struct {
@@ -91,20 +80,16 @@ typedef struct {
     int step;
 } SnippetWizard;
 
-/* forward declarations – definitions live further down next to their peers */
 static char *extract_accel_letter(const char *accel);
 static void snippet_update_accel_subtitle(SilktexPrefs *self);
 static void snippets_apply_modifiers(SilktexPrefs *self);
 
 G_DEFINE_FINAL_TYPE (SilktexPrefs, silktex_prefs, ADW_TYPE_PREFERENCES_DIALOG)
 
-/* -------------------------------------------------------------------------- */
-/* Helpers */
-
-static void fire_apply(SilktexPrefs *self)
-{
-    if (self->apply_func) self->apply_func(self->apply_data);
-}
+    static void fire_apply(SilktexPrefs *self)
+    {
+        if (self->apply_func) self->apply_func(self->apply_data);
+    }
 
 static void ensure_snippet_editor_css(void)
 {
@@ -113,23 +98,22 @@ static void ensure_snippet_editor_css(void)
     installed = TRUE;
 
     GtkCssProvider *provider = gtk_css_provider_new();
-    gtk_css_provider_load_from_string(
-        provider,
-        "scrolledwindow.silktex-snippet-scroller, "
-        "scrolledwindow.silktex-snippet-scroller > viewport {"
-        "  background-color: @window_bg_color;"
-        "}"
-        ".silktex-snippet-editor {"
-        "  background-color: @window_bg_color;"
-        "  color: @window_fg_color;"
-        "  font-size: 18pt;"
-        "  caret-color: @window_fg_color;"
-        "}"
-        "textview.silktex-snippet-editor text {"
-        "  background-color: @window_bg_color;"
-        "  color: @window_fg_color;"
-        "  caret-color: @window_fg_color;"
-        "}");
+    gtk_css_provider_load_from_string(provider,
+                                      "scrolledwindow.silktex-snippet-scroller, "
+                                      "scrolledwindow.silktex-snippet-scroller > viewport {"
+                                      "  background-color: @window_bg_color;"
+                                      "}"
+                                      ".silktex-snippet-editor {"
+                                      "  background-color: @window_bg_color;"
+                                      "  color: @window_fg_color;"
+                                      "  font-size: 18pt;"
+                                      "  caret-color: @window_fg_color;"
+                                      "}"
+                                      "textview.silktex-snippet-editor text {"
+                                      "  background-color: @window_bg_color;"
+                                      "  color: @window_fg_color;"
+                                      "  caret-color: @window_fg_color;"
+                                      "}");
     gtk_style_context_add_provider_for_display(gdk_display_get_default(),
                                                GTK_STYLE_PROVIDER(provider),
                                                GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -146,8 +130,9 @@ static void setup_snippet_source_buffer(GtkSourceBuffer *buffer)
     if (lang) gtk_source_buffer_set_language(buffer, lang);
     GtkSourceStyleSchemeManager *sm = gtk_source_style_scheme_manager_get_default();
     const char *scheme_id = silktex_resolved_style_scheme_id();
-    GtkSourceStyleScheme *scheme =
-        (scheme_id && *scheme_id) ? gtk_source_style_scheme_manager_get_scheme(sm, scheme_id) : NULL;
+    GtkSourceStyleScheme *scheme = (scheme_id && *scheme_id)
+                                       ? gtk_source_style_scheme_manager_get_scheme(sm, scheme_id)
+                                       : NULL;
     if (scheme) gtk_source_buffer_set_style_scheme(buffer, scheme);
     gtk_source_buffer_set_highlight_syntax(buffer, TRUE);
 }
@@ -203,8 +188,6 @@ static void on_style_manager_changed(GObject *obj, GParamSpec *pspec, gpointer u
     refresh_snippet_theme(SILKTEX_PREFS(user_data));
 }
 
-/* Build a GtkStringList whose display names match the style scheme list.
- * Also fill self->scheme_ids with the corresponding IDs. */
 static GtkStringList *build_scheme_model(SilktexPrefs *self)
 {
     silktex_init_style_scheme_paths();
@@ -284,7 +267,7 @@ static void snippet_load_current_into_ui(SilktexPrefs *self)
     SnippetEntry *e = g_ptr_array_index(self->snippet_entries, self->current_snippet_index);
     gtk_editable_set_text(GTK_EDITABLE(self->row_snippet_name), e->name ? e->name : "");
     gtk_editable_set_text(GTK_EDITABLE(self->row_snippet_key), e->key ? e->key : "");
-    /* Only the letter portion is user-editable; modifier prefix is global. */
+    /* Strip modifier prefix — only the letter is editable here; modifiers are global. */
     g_autofree char *letter = extract_accel_letter(e->accel);
     gtk_editable_set_text(GTK_EDITABLE(self->row_snippet_accel), letter);
     gtk_text_buffer_set_text(self->snippet_buf, e->body ? e->body : "", -1);
@@ -345,9 +328,8 @@ static void snippets_parse_file(SilktexPrefs *self)
                 e->key = g_strdup(json_node_get_string(prefix_node));
             } else if (JSON_NODE_HOLDS_ARRAY(prefix_node)) {
                 JsonArray *arr = json_node_get_array(prefix_node);
-                e->key = g_strdup(json_array_get_length(arr) > 0
-                                      ? json_array_get_string_element(arr, 0)
-                                      : "");
+                e->key = g_strdup(
+                    json_array_get_length(arr) > 0 ? json_array_get_string_element(arr, 0) : "");
             }
         }
         if (!e->key) e->key = g_strdup("");
@@ -432,8 +414,6 @@ static gboolean snippets_write_file(SilktexPrefs *self, GError **error)
     json_generator_set_indent(gen, 2);
     return json_generator_to_file(gen, silktex_snippets_get_filename(self->snippets), error);
 }
-
-/* ------------------------------------------------------------------ signals */
 
 static void on_line_numbers(AdwSwitchRow *r, GParamSpec *p, gpointer ud)
 {
@@ -532,19 +512,12 @@ static void on_autosave_timer(AdwSpinRow *r, GParamSpec *p, gpointer ud)
     config_set_integer("File", "autosave_timer", (int)adw_spin_row_get_value(r));
 }
 
-/* ------------------------------------------------------------------ init */
-
 static void silktex_prefs_init(SilktexPrefs *self)
 {
-    /*
-     * AdwDialog dialogs are resizable; these are initial dimensions only.
-     * Keep them below the GNOME HIG 1024x600 baseline once window chrome
-     * and margins are accounted for.
-     */
+    /* Initial dims — below the GNOME HIG 1024×600 baseline to fit small screens. */
     adw_dialog_set_content_width(ADW_DIALOG(self), 640);
     adw_dialog_set_content_height(ADW_DIALOG(self), 520);
 
-    /* ---- Editor page ---- */
     AdwPreferencesPage *editor_page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
     adw_preferences_page_set_title(editor_page, _("Editor"));
     adw_preferences_page_set_icon_name(editor_page, "document-edit-symbolic");
@@ -611,14 +584,16 @@ static void silktex_prefs_init(SilktexPrefs *self)
 
     GtkStringList *scheme_names = build_scheme_model(self);
     self->row_scheme_light = ADW_COMBO_ROW(adw_combo_row_new());
-    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(self->row_scheme_light), _("Light Theme Scheme"));
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(self->row_scheme_light),
+                                  _("Light Theme Scheme"));
     adw_combo_row_set_model(self->row_scheme_light, G_LIST_MODEL(scheme_names));
     int si_light = scheme_index_for_id(self, config_get_string("Editor", "style_scheme_light"));
     adw_combo_row_set_selected(self->row_scheme_light, (guint)si_light);
     g_signal_connect(self->row_scheme_light, "notify::selected", G_CALLBACK(on_scheme_light), self);
 
     self->row_scheme_dark = ADW_COMBO_ROW(adw_combo_row_new());
-    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(self->row_scheme_dark), _("Dark Theme Scheme"));
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(self->row_scheme_dark),
+                                  _("Dark Theme Scheme"));
     adw_combo_row_set_model(self->row_scheme_dark, G_LIST_MODEL(scheme_names));
     int si_dark = scheme_index_for_id(self, config_get_string("Editor", "style_scheme_dark"));
     adw_combo_row_set_selected(self->row_scheme_dark, (guint)si_dark);
@@ -632,7 +607,6 @@ static void silktex_prefs_init(SilktexPrefs *self)
     adw_preferences_page_add(editor_page, grp_scheme);
     adw_preferences_dialog_add(ADW_PREFERENCES_DIALOG(self), editor_page);
 
-    /* ---- Compile page ---- */
     AdwPreferencesPage *compile_page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
     adw_preferences_page_set_title(compile_page, _("Compilation"));
     adw_preferences_page_set_icon_name(compile_page, "system-run-symbolic");
@@ -695,7 +669,6 @@ static void silktex_prefs_init(SilktexPrefs *self)
     adw_preferences_page_add(compile_page, grp_timing);
     adw_preferences_dialog_add(ADW_PREFERENCES_DIALOG(self), compile_page);
 
-    /* ---- Files page ---- */
     AdwPreferencesPage *files_page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
     adw_preferences_page_set_title(files_page, _("Files"));
     adw_preferences_page_set_icon_name(files_page, "document-save-symbolic");
@@ -722,7 +695,6 @@ static void silktex_prefs_init(SilktexPrefs *self)
     adw_preferences_page_add(files_page, grp_autosave);
     adw_preferences_dialog_add(ADW_PREFERENCES_DIALOG(self), files_page);
 
-    /* ---- Snippets page ---- (content populated lazily in set_snippets) */
     AdwPreferencesPage *snip_page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
     adw_preferences_page_set_title(snip_page, _("Snippets"));
     adw_preferences_page_set_icon_name(snip_page, "starred-symbolic");
@@ -758,8 +730,6 @@ void silktex_prefs_set_apply_callback(SilktexPrefs *self, SilktexPrefsApplyFunc 
     self->apply_data = user_data;
 }
 
-/* ---- snippet editor callbacks ---- */
-
 static void on_snippet_save(GtkButton *btn, gpointer ud)
 {
     SilktexPrefs *self = SILKTEX_PREFS(ud);
@@ -791,9 +761,8 @@ static void on_snippet_reset(GtkButton *btn, gpointer ud)
 {
     SilktexPrefs *self = SILKTEX_PREFS(ud);
     if (!self->snippets || !self->snippet_buf) return;
-    AdwAlertDialog *dlg =
-        ADW_ALERT_DIALOG(adw_alert_dialog_new(_("Reset snippets?"),
-                                              _("This replaces all custom snippets with defaults.")));
+    AdwAlertDialog *dlg = ADW_ALERT_DIALOG(adw_alert_dialog_new(
+        _("Reset snippets?"), _("This replaces all custom snippets with defaults.")));
     adw_alert_dialog_add_response(dlg, "cancel", _("Cancel"));
     adw_alert_dialog_add_response(dlg, "reset", _("Reset"));
     adw_alert_dialog_set_response_appearance(dlg, "reset", ADW_RESPONSE_DESTRUCTIVE);
@@ -803,12 +772,8 @@ static void on_snippet_reset(GtkButton *btn, gpointer ud)
     adw_dialog_present(ADW_DIALOG(dlg), GTK_WIDGET(self));
 }
 
-/* ---- global snippet modifier preferences ------------------------------------
- *
- * Each snippet in snippets.json stores only a single letter (or keysym name)
- * in its "accelerator" field.  At runtime that letter is combined with the
- * two global modifier keys chosen here to form the actual shortcut.
- */
+/* Each snippet stores a single letter; the two global modifier keys chosen here
+ * combine with it at runtime to form the full shortcut. */
 
 static const struct {
     const char *display; /* shown in the combo */
@@ -955,7 +920,6 @@ static char *extract_accel_letter(const char *accel)
     return g_strdup(p);
 }
 
-/* Apply the current modifier preferences to the running snippet engine. */
 static void snippets_apply_modifiers(SilktexPrefs *self)
 {
     if (!self->snippets) return;
@@ -1069,7 +1033,8 @@ static void on_snippet_new(GtkButton *btn, gpointer ud)
     GtkWidget *body_scrolled = gtk_scrolled_window_new();
     setup_snippet_scroller(body_scrolled);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(body_scrolled), body_view);
-    g_signal_connect(body_buf, "changed", G_CALLBACK(on_snippet_editor_text_changed), body_scrolled);
+    g_signal_connect(body_buf, "changed", G_CALLBACK(on_snippet_editor_text_changed),
+                     body_scrolled);
     snippet_editor_update_height(GTK_TEXT_BUFFER(body_buf), body_scrolled);
     gtk_box_append(GTK_BOX(p2), body_scrolled);
 
@@ -1078,8 +1043,10 @@ static void on_snippet_new(GtkButton *btn, gpointer ud)
     GtkStringList *mods2 = build_modifier_model();
     w->mod1_dd = GTK_DROP_DOWN(gtk_drop_down_new(G_LIST_MODEL(mods1), NULL));
     w->mod2_dd = GTK_DROP_DOWN(gtk_drop_down_new(G_LIST_MODEL(mods2), NULL));
-    gtk_drop_down_set_selected(w->mod1_dd, modifier_choice_index_for(config_get_string("Snippets", "modifier1")));
-    gtk_drop_down_set_selected(w->mod2_dd, modifier_choice_index_for(config_get_string("Snippets", "modifier2")));
+    gtk_drop_down_set_selected(
+        w->mod1_dd, modifier_choice_index_for(config_get_string("Snippets", "modifier1")));
+    gtk_drop_down_set_selected(
+        w->mod2_dd, modifier_choice_index_for(config_get_string("Snippets", "modifier2")));
     w->letter_row = ADW_ENTRY_ROW(adw_entry_row_new());
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(w->letter_row), _("Letter"));
     gtk_box_append(GTK_BOX(p3), gtk_label_new(_("Modifier 1")));
@@ -1159,7 +1126,6 @@ void silktex_prefs_set_snippets(SilktexPrefs *self, SilktexSnippets *snippets)
         ADW_PREFERENCES_PAGE(g_object_get_data(G_OBJECT(self), "snip-page"));
     if (!snip_page) return;
 
-    /* ---- shortcut modifier pair (global) ---- */
     AdwPreferencesGroup *grp_mods = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
     adw_preferences_group_set_title(grp_mods, _("Shortcut Modifiers"));
     adw_preferences_group_set_description(
@@ -1191,7 +1157,6 @@ void silktex_prefs_set_snippets(SilktexPrefs *self, SilktexSnippets *snippets)
     adw_preferences_group_add(grp_mods, GTK_WIDGET(self->row_snippet_mod2));
     adw_preferences_page_add(snip_page, grp_mods);
 
-    /* ---- snippet selection ---- */
     AdwPreferencesGroup *grp_list = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
     adw_preferences_group_set_title(grp_list, _("Manage Snippets"));
     adw_preferences_group_set_description(
@@ -1220,8 +1185,7 @@ void silktex_prefs_set_snippets(SilktexPrefs *self, SilktexSnippets *snippets)
     self->lbl_snippet_accel_preview = GTK_LABEL(gtk_label_new(""));
     gtk_widget_add_css_class(GTK_WIDGET(self->lbl_snippet_accel_preview), "dim-label");
     gtk_widget_add_css_class(GTK_WIDGET(self->lbl_snippet_accel_preview), "monospace");
-    adw_entry_row_add_suffix(self->row_snippet_accel,
-                             GTK_WIDGET(self->lbl_snippet_accel_preview));
+    adw_entry_row_add_suffix(self->row_snippet_accel, GTK_WIDGET(self->lbl_snippet_accel_preview));
 
     adw_preferences_group_add(grp_list, GTK_WIDGET(self->row_snippet_pick));
     adw_preferences_group_add(grp_list, GTK_WIDGET(self->row_snippet_name));
@@ -1229,14 +1193,12 @@ void silktex_prefs_set_snippets(SilktexPrefs *self, SilktexSnippets *snippets)
     adw_preferences_group_add(grp_list, GTK_WIDGET(self->row_snippet_accel));
     adw_preferences_page_add(snip_page, grp_list);
 
-    /* ---- instruction and editor ---- */
     AdwPreferencesGroup *grp_info = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
     adw_preferences_group_set_title(grp_info, _("Snippet Body"));
     adw_preferences_group_set_description(
         grp_info, _("Placeholders: $1  $2  …  $0 (final position)   ${N:default}\n"
                     "Macros:  $FILENAME   $BASENAME   $SELECTED_TEXT"));
 
-    /* ---- toolbar row ---- */
     GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_margin_top(toolbar, 4);
     gtk_widget_set_margin_bottom(toolbar, 4);
@@ -1257,7 +1219,6 @@ void silktex_prefs_set_snippets(SilktexPrefs *self, SilktexSnippets *snippets)
     gtk_box_append(GTK_BOX(toolbar), btn_new);
     gtk_box_append(GTK_BOX(toolbar), btn_remove);
 
-    /* ---- source view ---- */
     GtkSourceBuffer *sbuf = gtk_source_buffer_new(NULL);
     setup_snippet_source_buffer(sbuf);
     self->snippet_buf = GTK_TEXT_BUFFER(sbuf);

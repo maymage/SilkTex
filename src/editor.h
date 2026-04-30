@@ -2,10 +2,6 @@
  * SilkTex - Modern LaTeX Editor
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Public API for the GtkSourceView-backed editor instance. One SilktexEditor
- * per tab; not a GtkWidget subclass — use silktex_editor_get_view() for the
- * widget to pack into a container.
  */
 
 #pragma once
@@ -47,11 +43,9 @@ void silktex_editor_set_font(SilktexEditor *self, const char *font_desc);
 void silktex_editor_scroll_to_line(SilktexEditor *self, int line);
 void silktex_editor_scroll_to_cursor(SilktexEditor *self);
 
-/* Navigate by line (0-based) */
 void silktex_editor_goto_line(SilktexEditor *self, int line);
 int silktex_editor_get_cursor_line(SilktexEditor *self);
 
-/* Apply all editor settings from configfile */
 void silktex_editor_apply_settings(SilktexEditor *self);
 
 void silktex_editor_apply_textstyle(SilktexEditor *self, const char *style_type);

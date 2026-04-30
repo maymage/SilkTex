@@ -2,10 +2,6 @@
  * SilkTex - SyncTeX forward/inverse sync helpers
  * Copyright (C) 2026 Bela Georg Barthelmes
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * Invokes the `synctex` CLI (view / edit) instead of linking libsynctex so
- * minimal Flatpak SDKs can omit the library. Parses stdout for Page/Line/Column
- * and drives SilktexPreview scroll or SilktexEditor goto_line accordingly.
  */
 #include "synctex.h"
 #include "utils.h"
@@ -13,10 +9,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* ------------------------------------------------------------------ utils */
-
-/* Run `synctex <args>` and return its stdout as a string, or NULL on error.
- * Caller must g_free() the result. */
 static char *run_synctex(const char *const *args)
 {
     char *output = NULL;
@@ -54,7 +46,6 @@ static char *run_synctex(const char *const *args)
     return output;
 }
 
-/* Resolve the directory that contains SyncTeX sidecars for this editor/PDF. */
 static char *resolve_synctex_dir(SilktexEditor *editor, const char *pdf_path)
 {
     const char *workfile = silktex_editor_get_workfile(editor);
@@ -101,7 +92,6 @@ static char *run_synctex_edit(int page, double x, double y, const char *pdf_path
     return run_synctex(args);
 }
 
-/* Parse a key: value pair from synctex output, e.g. "Page:3\n" → 3 */
 static gboolean parse_int_field(const char *output, const char *key, int *out)
 {
     const char *p = strstr(output, key);
@@ -119,8 +109,6 @@ static gboolean parse_double_field(const char *output, const char *key, double *
     return TRUE;
 }
 
-/* ---------------------------------------------------------------- forward */
-
 gboolean silktex_synctex_forward(SilktexEditor *editor, SilktexPreview *preview,
                                  const char *pdf_path)
 {
@@ -128,7 +116,6 @@ gboolean silktex_synctex_forward(SilktexEditor *editor, SilktexPreview *preview,
     g_return_val_if_fail(SILKTEX_IS_PREVIEW(preview), FALSE);
     g_return_val_if_fail(pdf_path != NULL, FALSE);
 
-    /* Get cursor line (1-based for synctex) */
     int line = silktex_editor_get_cursor_line(editor) + 1;
 
     g_autofree char *synctex_dir = resolve_synctex_dir(editor, pdf_path);
@@ -178,13 +165,10 @@ gboolean silktex_synctex_forward(SilktexEditor *editor, SilktexPreview *preview,
         return FALSE;
     }
 
-    /* Scroll preview to page (0-based) */
     silktex_preview_set_page(preview, page - 1);
-    /* TODO: scroll to x/y within the page once the preview exposes such API */
+    silktex_preview_scroll_to_position(preview, x, y);
     return TRUE;
 }
-
-/* --------------------------------------------------------------- inverse */
 
 gboolean silktex_synctex_inverse(SilktexEditor *editor, const char *pdf_path, int page, double x,
                                  double y)
@@ -192,7 +176,6 @@ gboolean silktex_synctex_inverse(SilktexEditor *editor, const char *pdf_path, in
     g_return_val_if_fail(SILKTEX_IS_EDITOR(editor), FALSE);
     g_return_val_if_fail(pdf_path != NULL, FALSE);
 
-    /* synctex edit -o "page:x:y:pdf" (with -d to find cached sidecars) */
     g_autofree char *synctex_dir = resolve_synctex_dir(editor, pdf_path);
     g_autofree char *out = run_synctex_edit(page, x, y, pdf_path, synctex_dir);
     if (!out && synctex_dir) out = run_synctex_edit(page, x, y, pdf_path, NULL);
@@ -201,7 +184,6 @@ gboolean silktex_synctex_inverse(SilktexEditor *editor, const char *pdf_path, in
         return FALSE;
     }
 
-    /* Parse "Line:" field */
     int line = 0;
     if (!parse_int_field(out, "Line:", &line) || line < 1) return FALSE;
 
