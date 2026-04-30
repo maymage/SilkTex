@@ -19,8 +19,8 @@
 #endif
 #include <math.h>
 
-#define PAGE_GAP_BETWEEN 20
-#define PAGE_PADDING     PAGE_GAP_BETWEEN
+#define PAGE_GAP_BETWEEN 16
+#define PAGE_PADDING     8
 
 struct _SilktexPreview {
     GtkWidget parent_instance;
@@ -51,6 +51,7 @@ struct _SilktexPreview {
     gboolean inverted;
     gulong scale_factor_handler;
     guint fit_tick_id;
+    guint rerender_debounce_id;
 };
 
 G_DEFINE_FINAL_TYPE (SilktexPreview, silktex_preview, GTK_TYPE_WIDGET)
@@ -139,7 +140,7 @@ static void silktex_preview_render_pages(SilktexPreview *self)
 
     if (self->layout == SILKTEX_PREVIEW_LAYOUT_SINGLE_PAGE) {
         if (self->cached_surface != NULL && self->cached_page == self->current_page &&
-            self->cached_scale == scale && fabs(self->cached_zoom - self->zoom) < 0.001) {
+            self->cached_scale == scale) {
             return;
         }
         silktex_preview_invalidate_cache(self);
@@ -164,7 +165,7 @@ static void silktex_preview_render_pages(SilktexPreview *self)
     }
 
     if (self->page_surfaces != NULL && self->page_surfaces->len == (guint)self->n_pages &&
-        self->cached_scale == scale && fabs(self->cached_zoom - self->zoom) < 0.001) {
+        self->cached_scale == scale) {
         return;
     }
 
@@ -288,22 +289,26 @@ static void draw_func(GtkDrawingArea *area, cairo_t *cr, int width, int height, 
 
     silktex_preview_render_pages(self);
 
-    const double border = 0.55;
+    /* Scale existing surfaces to the current zoom while a re-render is pending.
+     * This makes the PDF track pane resizes instantly instead of jumping. */
+    double scale_ratio = (self->cached_zoom > 0.001) ? (self->zoom / self->cached_zoom) : 1.0;
 
     if (self->layout == SILKTEX_PREVIEW_LAYOUT_SINGLE_PAGE) {
         if (self->cached_surface == NULL) return;
         int lw = surface_logical_width(self->cached_surface);
         int lh = surface_logical_height(self->cached_surface);
-        double x = (width - lw) / 2.0;
+        int dw = (int)round(lw * scale_ratio);
+        int dh = (int)round(lh * scale_ratio);
+        double x = (width - dw) / 2.0;
         if (x < 0) x = PAGE_PADDING;
-        double y = MAX((double)PAGE_PADDING, (height - lh) / 2.0);
+        double y = MAX((double)PAGE_PADDING, (height - dh) / 2.0);
 
-        draw_page_paper_shadow(cr, x, y, lw, lh);
-        draw_surface_with_optional_invert(cr, self->cached_surface, x, y, lw, lh, self->inverted);
-        cairo_set_source_rgb(cr, border, border, border);
-        cairo_set_line_width(cr, 1.0);
-        cairo_rectangle(cr, x - 0.5, y - 0.5, lw + 1, lh + 1);
-        cairo_stroke(cr);
+        draw_page_paper_shadow(cr, x, y, dw, dh);
+        cairo_save(cr);
+        cairo_translate(cr, x, y);
+        cairo_scale(cr, scale_ratio, scale_ratio);
+        draw_surface_with_optional_invert(cr, self->cached_surface, 0, 0, lw, lh, self->inverted);
+        cairo_restore(cr);
         return;
     }
 
@@ -313,23 +318,29 @@ static void draw_func(GtkDrawingArea *area, cairo_t *cr, int width, int height, 
         if (surface == NULL) continue;
         int lw = surface_logical_width(surface);
         int lh = surface_logical_height(surface);
-        double x = (width - lw) / 2.0;
+        int dw = (int)round(lw * scale_ratio);
+        int dh = (int)round(lh * scale_ratio);
+        double x = (width - dw) / 2.0;
         if (x < 0) x = PAGE_PADDING;
 
-        draw_page_paper_shadow(cr, x, y, lw, lh);
-        draw_surface_with_optional_invert(cr, surface, x, y, lw, lh, self->inverted);
-        cairo_set_source_rgb(cr, border, border, border);
-        cairo_set_line_width(cr, 1.0);
-        cairo_rectangle(cr, x - 0.5, y - 0.5, lw + 1, lh + 1);
-        cairo_stroke(cr);
+        draw_page_paper_shadow(cr, x, y, dw, dh);
+        cairo_save(cr);
+        cairo_translate(cr, x, y);
+        cairo_scale(cr, scale_ratio, scale_ratio);
+        draw_surface_with_optional_invert(cr, surface, 0, 0, lw, lh, self->inverted);
+        cairo_restore(cr);
 
-        y += lh + PAGE_GAP_BETWEEN;
+        y += dh + PAGE_GAP_BETWEEN;
     }
 }
 
 static void silktex_preview_dispose(GObject *object)
 {
     SilktexPreview *self = SILKTEX_PREVIEW(object);
+    if (self->rerender_debounce_id) {
+        g_source_remove(self->rerender_debounce_id);
+        self->rerender_debounce_id = 0;
+    }
     silktex_preview_invalidate_cache(self);
     g_clear_object(&self->document);
     g_clear_pointer(&self->pdf_path, g_free);
@@ -825,6 +836,22 @@ static void ensure_fit_tick(SilktexPreview *self)
         self->fit_tick_id = gtk_widget_add_tick_callback(GTK_WIDGET(self), fit_zoom_tick, NULL, NULL);
 }
 
+static gboolean on_rerender_debounce(gpointer user_data)
+{
+    SilktexPreview *self = SILKTEX_PREVIEW(user_data);
+    self->rerender_debounce_id = 0;
+    silktex_preview_invalidate_cache(self);
+    gtk_widget_queue_draw(self->drawing_area);
+    return G_SOURCE_REMOVE;
+}
+
+static void schedule_rerender_debounce(SilktexPreview *self)
+{
+    if (self->rerender_debounce_id)
+        g_source_remove(self->rerender_debounce_id);
+    self->rerender_debounce_id = g_timeout_add(50, on_rerender_debounce, self);
+}
+
 void silktex_preview_zoom_fit_width(SilktexPreview *self)
 {
     g_return_if_fail(SILKTEX_IS_PREVIEW(self));
@@ -838,9 +865,22 @@ void silktex_preview_zoom_fit_width(SilktexPreview *self)
         if (new_zoom > 10.0) new_zoom = 10.0;
         if (fabs(self->zoom - new_zoom) > 0.001) {
             self->zoom = new_zoom;
-            silktex_preview_invalidate_cache(self);
             g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_ZOOM]);
+            /* Update content dims now so the scrolled window doesn't show a
+             * spurious scrollbar while the debounce re-render is pending. */
+            int new_lw = (int)ceil(self->page_width * self->zoom);
+            int new_lh = (int)ceil(self->page_height * self->zoom);
+            gtk_drawing_area_set_content_width(GTK_DRAWING_AREA(self->drawing_area),
+                                               MAX(new_lw + 2 * PAGE_PADDING, 1));
+            if (self->n_pages > 0) {
+                int est_h = self->n_pages * new_lh
+                            + (self->n_pages > 1 ? (self->n_pages - 1) * PAGE_GAP_BETWEEN : 0)
+                            + 2 * PAGE_PADDING;
+                gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(self->drawing_area),
+                                                    MAX(est_h, 1));
+            }
             gtk_widget_queue_draw(self->drawing_area);
+            schedule_rerender_debounce(self);
         }
     }
 }
@@ -861,9 +901,20 @@ void silktex_preview_zoom_fit_page(SilktexPreview *self)
         if (new_zoom > 10.0) new_zoom = 10.0;
         if (fabs(self->zoom - new_zoom) > 0.001) {
             self->zoom = new_zoom;
-            silktex_preview_invalidate_cache(self);
             g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_ZOOM]);
+            int new_lw = (int)ceil(self->page_width * self->zoom);
+            int new_lh = (int)ceil(self->page_height * self->zoom);
+            gtk_drawing_area_set_content_width(GTK_DRAWING_AREA(self->drawing_area),
+                                               MAX(new_lw + 2 * PAGE_PADDING, 1));
+            if (self->n_pages > 0) {
+                int est_h = self->n_pages * new_lh
+                            + (self->n_pages > 1 ? (self->n_pages - 1) * PAGE_GAP_BETWEEN : 0)
+                            + 2 * PAGE_PADDING;
+                gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(self->drawing_area),
+                                                    MAX(est_h, 1));
+            }
             gtk_widget_queue_draw(self->drawing_area);
+            schedule_rerender_debounce(self);
         }
     }
 }

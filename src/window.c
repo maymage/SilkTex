@@ -1143,21 +1143,17 @@ static void on_window_width_changed(GObject *object, GParamSpec *pspec, gpointer
 
     self->preview_narrow = narrow;
 
-    if (narrow && gtk_toggle_button_get_active(self->btn_preview) && self->editor_paned) {
-        int w = gtk_widget_get_width(GTK_WIDGET(self->editor_paned));
-        if (w > 0) {
-            int collapsed_pos = clamp_editor_pane_start(self, w, self->preview_pane_pos);
-            self->preview_pane_silence = TRUE;
-            gtk_paned_set_position(self->editor_paned, collapsed_pos);
-            self->preview_pane_silence = FALSE;
-            self->preview_pane_pos = collapsed_pos;
-            self->preview_pane_ratio = (double)collapsed_pos / (double)w;
-            self->preview_pane_restorable = TRUE;
-        }
+    if (narrow && gtk_toggle_button_get_active(self->btn_preview)) {
+        /* Auto-collapse: on_preview_toggled will save the split ratio. */
+        self->preview_auto_collapsed = TRUE;
+        gtk_toggle_button_set_active(self->btn_preview, FALSE);
+        /* Clear seeded flag so the next restore gives a fresh 50/50 split. */
+        self->preview_split_seeded = FALSE;
     } else if (!narrow && self->preview_auto_collapsed) {
+        /* Window is wide enough again — restore preview; on_preview_toggled
+         * sees preview_split_seeded=FALSE and applies a 50/50 split. */
         self->preview_auto_collapsed = FALSE;
         gtk_toggle_button_set_active(self->btn_preview, TRUE);
-        g_idle_add(idle_restore_editor_pane, self);
     }
 }
 
@@ -1390,7 +1386,6 @@ static void silktex_window_class_init(SilktexWindowClass *klass)
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, preview_box);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, structure_container);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, page_label);
-    gtk_widget_class_bind_template_child(widget_class, SilktexWindow, preview_status);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_preview);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_sidebar);
     gtk_widget_class_bind_template_child(widget_class, SilktexWindow, btn_compile);
@@ -1423,21 +1418,6 @@ void silktex_window_install_chrome_css(void)
         "}"
         ".silktex-sidebar-pane {"
         "  box-shadow: -1px 0 0 0 @borders, -1px 0 4px alpha(black, 0.2);"
-        "}"
-        "box.toolbar.silktex-bottom-toolbar, box.silktex-bottom-toolbar {"
-        "  border: none;"
-        "  box-shadow: none;"
-        "  outline: none;"
-        "}"
-        "box.silktex-bottom-toolbar > separator, box.toolbar.silktex-bottom-toolbar > separator, "
-        "box.silktex-bottom-toolbar separator, box.toolbar.silktex-bottom-toolbar separator {"
-        "  min-width: 0;"
-        "  min-height: 0;"
-        "  background: transparent;"
-        "  color: transparent;"
-        "  margin: 0;"
-        "  padding: 0;"
-        "  border: none;"
         "}"
         "revealer.silktex-compile-log {"
         "  box-shadow: none;"
@@ -1474,6 +1454,7 @@ static void silktex_window_init(SilktexWindow *self)
 
     if (self->root_toolbar_view) {
         adw_toolbar_view_set_top_bar_style(self->root_toolbar_view, ADW_TOOLBAR_FLAT);
+        adw_toolbar_view_set_bottom_bar_style(self->root_toolbar_view, ADW_TOOLBAR_RAISED_BORDER);
     }
     if (self->editor_toolbar_view) {
         adw_toolbar_view_set_top_bar_style(self->editor_toolbar_view, ADW_TOOLBAR_FLAT);
